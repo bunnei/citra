@@ -13,6 +13,11 @@ namespace HLE {
 #define PARAM(n)    Core::g_app_core->GetReg(n)
 #define RETURN(n)   Core::g_app_core->SetReg(0, n)
 
+// TODO(bunnei): Find a way to verify the correctness of this...
+#define RETURN64(n) \
+    Core::g_app_core->SetReg(0, (u32)(n & 0xFFFFFFFF)); \
+    Core::g_app_core->SetReg(1, (u32)((n >> 32) & 0xFFFFFFFF))
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Function wrappers that return type s32
 
@@ -102,6 +107,13 @@ template<s32 func(u32*, const char*)> void Wrap() {
 
 template<u32 func()> void Wrap() {
     RETURN(func());
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Function wrappers that return type s64
+
+template<s64 func()> void Wrap() {
+    RETURN64(func());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

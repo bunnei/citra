@@ -278,6 +278,7 @@ void RendererOpenGL::Init() {
     glScissor(0, 0, m_resolution_width, m_resolution_height);
     glClearDepth(1.0f);
 
+    glewExperimental = GL_TRUE;
     GLenum err = glewInit();
     if (GLEW_OK != err) {
         ERROR_LOG(RENDER, "Failed to initialize GLEW! Error message: \"%s\". Exiting...",

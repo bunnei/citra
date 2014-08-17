@@ -33,6 +33,12 @@ include_directories(${GLEW_INCLUDE_PATH})
 # workaround for GLFW linking on OSX
 link_directories(${GLFW_LIBRARY_DIRS})
 
+if (APPLE)
+    set(ICONV_LIBRARY iconv)
+else()
+    set(RT_LIBRARY rt)
+endif()
+
 option(DISABLE_QT4 "Disable Qt4 GUI" OFF)
 if(NOT DISABLE_QT4)
     include(FindQt4)

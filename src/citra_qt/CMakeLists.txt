@@ -54,10 +54,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(./)
 
 add_executable(citra-qt ${SRCS} ${HEADERS} ${MOC_SRCS} ${UI_HDRS})
-if (APPLE)
-    target_link_libraries(citra-qt core common video_core qhexedit iconv ${COREFOUNDATION_LIBRARY} ${QT_LIBRARIES} ${GLEW_LIBRARY} ${OPENGL_LIBRARIES})
-else()
-    target_link_libraries(citra-qt core common video_core qhexedit ${QT_LIBRARIES} ${OPENGL_LIBRARIES} ${SDL2_LIBRARY} rt GLEW ${GLFW_LIBRARIES})
-endif()
+target_link_libraries(citra-qt core common video_core qhexedit ${ICONV_LIBRARY} ${COREFOUNDATION_LIBRARY} ${QT_LIBRARIES} ${OPENGL_LIBRARIES} ${RT_LIBRARY} ${GLEW_LIBRARY})
 
 #install(TARGETS citra-qt RUNTIME DESTINATION ${bindir})

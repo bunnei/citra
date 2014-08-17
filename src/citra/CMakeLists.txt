@@ -10,10 +10,10 @@ endif()
 
 add_executable(citra ${SRCS} ${HEADERS})
 
-if (APPLE)
-    target_link_libraries(citra core common video_core iconv pthread ${COREFOUNDATION_LIBRARY} ${OPENGL_LIBRARIES} ${GLEW_LIBRARY} ${GLFW_LIBRARIES})
-else()
-    target_link_libraries(citra core common video_core GLEW pthread X11 Xxf86vm Xi Xcursor ${OPENGL_LIBRARIES} ${GLFW_LIBRARIES} rt ${X11_Xrandr_LIB} ${X11_xv86vmode_LIB})
+if (NOT APPLE)
+    set(EXTRA_X11_LIBS Xi Xcursor ${X11_Xrandr_LIB} ${X11_xv86vmode_LIB})
 endif()
+
+target_link_libraries(citra core common video_core ${ICONV_LIBRARY} pthread  ${COREFOUNDATION_LIBRARY} ${OPENGL_LIBRARIES} ${EXTRA_X11_LIBS} ${GLEW_LIBRARY} ${GLFW_LIBRARIES} ${RT_LIBRARY})
 
 #install(TARGETS citra RUNTIME DESTINATION ${bindir})

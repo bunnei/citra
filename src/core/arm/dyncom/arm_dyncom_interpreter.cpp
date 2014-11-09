@@ -4032,7 +4032,6 @@ void InterpreterMainLoop(ARMul_State* state)
 	static unsigned int last_physical_base = 0, last_logical_base = 0;
 	int ptr;
 
-	LOAD_NZCVT;
 	DISPATCH:
 	{
         if (cpu->NumInstrsToExecute == 0)

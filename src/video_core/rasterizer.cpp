@@ -42,6 +42,8 @@ static const Math::Vec4<u8> GetPixel(int x, int y) {
 static u32 GetDepth(int x, int y) {
     const PAddr addr = registers.framebuffer.GetDepthBufferPhysicalAddress();
     u16* depth_buffer = reinterpret_cast<u16*>(Memory::GetPointer(PAddrToVAddr(addr)));
+	if (!depth_buffer)
+		return 0;
 
     // Assuming 16-bit depth buffer format until actual format handling is implemented
     return *(depth_buffer + x + y * registers.framebuffer.GetWidth());
@@ -50,6 +52,8 @@ static u32 GetDepth(int x, int y) {
 static void SetDepth(int x, int y, u16 value) {
     const PAddr addr = registers.framebuffer.GetDepthBufferPhysicalAddress();
     u16* depth_buffer = reinterpret_cast<u16*>(Memory::GetPointer(PAddrToVAddr(addr)));
+	if (!depth_buffer)
+		return;
 
     // Assuming 16-bit depth buffer format until actual format handling is implemented
     *(depth_buffer + x + y * registers.framebuffer.GetWidth()) = value;

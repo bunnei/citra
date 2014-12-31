@@ -1022,7 +1022,7 @@ ARMul_UndefInstr (ARMul_State * state, ARMword instr)
 {
     std::string disasm = ARM_Disasm::Disassemble(state->pc, instr);
     LOG_ERROR(Core_ARM11, "Undefined instruction!! Disasm: %s Opcode: 0x%x", disasm.c_str(), instr);
-    ARMul_Abort (state, ARMul_UndefinedInstrV);
+//    ARMul_Abort (state, ARMul_UndefinedInstrV);
 }
 
 /* Return TRUE if an interrupt is pending, FALSE otherwise.  */

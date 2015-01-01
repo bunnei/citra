@@ -275,8 +275,8 @@ static void ExecuteCommand(const Command& command, u32 thread_id) {
         auto& params = command.memory_fill;
         WriteGPURegister(GPU_REG_INDEX(memory_fill_config[0].address_start), Memory::VirtualToPhysicalAddress(params.start1) >> 3);
         WriteGPURegister(GPU_REG_INDEX(memory_fill_config[0].address_end), Memory::VirtualToPhysicalAddress(params.end1) >> 3);
-        WriteGPURegister(GPU_REG_INDEX(memory_fill_config[0].size), params.end1 - params.start1);
-        WriteGPURegister(GPU_REG_INDEX(memory_fill_config[0].value), params.value1);
+        WriteGPURegister(GPU_REG_INDEX(memory_fill_config[0].value_32bit), params.value1);
+        WriteGPURegister(GPU_REG_INDEX(memory_fill_config[0].control), params.control1);
 
         WriteGPURegister(GPU_REG_INDEX(memory_fill_config[1].address_start), Memory::VirtualToPhysicalAddress(params.start2) >> 3);
         WriteGPURegister(GPU_REG_INDEX(memory_fill_config[1].address_end), Memory::VirtualToPhysicalAddress(params.end2) >> 3);

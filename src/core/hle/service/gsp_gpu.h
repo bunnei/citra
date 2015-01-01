@@ -112,6 +112,10 @@ struct Command {
             u32 start2;
             u32 value2;
             u32 end2;
+            union {
+                BitField< 0, 16, u32> control1;
+                BitField<16, 16, u32> control2;
+            };
         } memory_fill;
 
         struct {

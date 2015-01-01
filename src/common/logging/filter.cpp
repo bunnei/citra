@@ -4,6 +4,9 @@
 
 #include <algorithm>
 
+#include <boost/range/adaptor/sliced.hpp>
+#include <boost/range/algorithm/fill.hpp>
+
 #include "common/logging/filter.h"
 #include "common/logging/backend.h"
 #include "common/string_util.h"
@@ -27,9 +30,7 @@ void Filter::SetSubclassesLevel(const ClassInfo& log_class, Level level) {
 
     const size_t begin = log_class_i + 1;
     const size_t end = begin + log_class.num_children;
-    for (size_t i = begin; begin < end; ++i) {
-        class_levels[i] = level;
-    }
+    boost::fill(class_levels | boost::adaptors::sliced(begin, end), level);
 }
 
 void Filter::ParseFilterString(const std::string& filter_str) {

@@ -482,6 +482,7 @@ void ProcessTriangle(const VertexShader::OutputVertex& v0,
             }
 
             auto dest = GetPixel(x >> 4, y >> 4);
+            Math::Vec4<u8> blend_output = combiner_output;
 
             if (registers.output_merger.alphablend_enable) {
                 auto params = registers.output_merger.alpha_blending;
@@ -540,7 +541,7 @@ void ProcessTriangle(const VertexShader::OutputVertex& v0,
                     result.r() = std::min(255, result.r());
                     result.g() = std::min(255, result.g());
                     result.b() = std::min(255, result.b());
-                    combiner_output = result.Cast<u8>();
+                    blend_output = result.Cast<u8>();
                     break;
                 }
 
@@ -548,12 +549,26 @@ void ProcessTriangle(const VertexShader::OutputVertex& v0,
                     LOG_CRITICAL(HW_GPU, "Unknown RGB blend equation %x", params.blend_equation_rgb.Value());
                     exit(0);
                 }
+
+                switch (params.blend_equation_a) {
+                case params.Add:
+                {
+                    auto result = (combiner_output * srcfactor + dest * dstfactor) / 255;
+                    result.a() = std::min(255, result.a());
+                    blend_output.a() = result.Cast<u8>().a();
+                    break;
+                }
+
+                default:
+                    LOG_CRITICAL(HW_GPU, "Unknown alpha blend equation %x", params.blend_equation_a.Value());
+                    exit(0);
+                }
             } else {
                 LOG_CRITICAL(HW_GPU, "logic op: %x", registers.output_merger.logic_op);
                 exit(0);
             }
 
-            DrawPixel(x >> 4, y >> 4, combiner_output);
+            DrawPixel(x >> 4, y >> 4, blend_output);
         }
     }
 }

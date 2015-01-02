@@ -539,6 +539,7 @@ void ProcessTriangle(const VertexShader::OutputVertex& v0,
             }
 
             auto dest = GetPixel(x >> 4, y >> 4);
+            Math::Vec4<u8> blend_output = combiner_output;
 
             if (registers.output_merger.alphablend_enable) {
                 auto params = registers.output_merger.alpha_blending;
@@ -597,12 +598,26 @@ void ProcessTriangle(const VertexShader::OutputVertex& v0,
                     result.r() = std::min(255, result.r());
                     result.g() = std::min(255, result.g());
                     result.b() = std::min(255, result.b());
-                    combiner_output = result.Cast<u8>();
+                    blend_output = result.Cast<u8>();
                     break;
                 }
 
                 default:
                     LOG_CRITICAL(HW_GPU, "Unknown RGB blend equation %x", params.blend_equation_rgb.Value());
+                    exit(0);
+                }
+
+                switch (params.blend_equation_a) {
+                case params.Add:
+                {
+                    auto result = (combiner_output * srcfactor + dest * dstfactor) / 255;
+                    result.a() = std::min(255, result.a());
+                    blend_output.a() = result.Cast<u8>().a();
+                    break;
+                }
+
+                default:
+                    LOG_CRITICAL(HW_GPU, "Unknown alpha blend equation %x", params.blend_equation_a.Value());
                     exit(0);
                 }
             } else {
@@ -611,10 +626,10 @@ void ProcessTriangle(const VertexShader::OutputVertex& v0,
             }
 
             const Math::Vec4<u8> result = {
-                registers.output_merger.red_enable   ? combiner_output.r() : dest.r(),
-                registers.output_merger.green_enable ? combiner_output.g() : dest.g(),
-                registers.output_merger.blue_enable  ? combiner_output.b() : dest.b(),
-                registers.output_merger.alpha_enable ? combiner_output.a() : dest.a()
+                registers.output_merger.red_enable   ? blend_output.r() : dest.r(),
+                registers.output_merger.green_enable ? blend_output.g() : dest.g(),
+                registers.output_merger.blue_enable  ? blend_output.b() : dest.b(),
+                registers.output_merger.alpha_enable ? blend_output.a() : dest.a()
             };
 
             DrawPixel(x >> 4, y >> 4, result);

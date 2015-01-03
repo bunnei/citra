@@ -271,6 +271,10 @@ void ProcessTriangle(const VertexShader::OutputVertex& v0,
                             return 0;
                     }
                 };
+
+                // Textures are laid out from bottom to top, hence we invert the t coordinate.
+                // NOTE: This may not be the right to place the inversion.
+                // TODO: Check if this applies to ETC textures, too.
                 s = GetWrappedTexCoord(texture.config.wrap_s, s, texture.config.width);
                 t = texture.config.height - 1 - GetWrappedTexCoord(texture.config.wrap_t, t, texture.config.height);
 

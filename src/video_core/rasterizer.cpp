@@ -247,6 +247,14 @@ void ProcessTriangle(const VertexShader::OutputVertex& v0,
                         case Regs::TextureConfig::Repeat:
                             return (int)(((unsigned)val) % size);
 
+                        case Regs::TextureConfig::MirroredRepeat:
+                        {
+                            int val = (int)(((unsigned)val) % (2*size));
+                            if (val >= size)
+                                val = 2 * size - 1 - val;
+                            return val;
+                        }
+
                         default:
                             LOG_ERROR(HW_GPU, "Unknown texture coordinate wrapping mode %x\n", (int)mode);
                             _dbg_assert_(HW_GPU, 0);

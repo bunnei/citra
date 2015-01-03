@@ -113,9 +113,9 @@ static int SignedArea (const Math::Vec2<Fix12P4>& vtx1,
     return Math::Cross(vec1, vec2).z;
 };
 
-void ProcessTriangle(const VertexShader::OutputVertex& v0,
-                     const VertexShader::OutputVertex& v1,
-                     const VertexShader::OutputVertex& v2)
+void ProcessTriangle(const VertexShader::OutputVertex& v0_,
+                     const VertexShader::OutputVertex& v1_,
+                     const VertexShader::OutputVertex& v2_)
 {
     // vertex positions in rasterizer coordinates
     auto FloatToFix = [](float24 flt) {
@@ -127,6 +127,9 @@ void ProcessTriangle(const VertexShader::OutputVertex& v0,
                                              return Math::Vec3<Fix12P4>{FloatToFix(vec.x), FloatToFix(vec.y), FloatToFix(vec.z)};
                                          };
 
+    VertexShader::OutputVertex v0 = v0_;
+    VertexShader::OutputVertex v1 = v1_;
+    VertexShader::OutputVertex v2 = v2_;
     Math::Vec3<Fix12P4> vtxpos[3]{ ScreenToRasterizerCoordinates(v0.screenpos),
                                    ScreenToRasterizerCoordinates(v1.screenpos),
                                    ScreenToRasterizerCoordinates(v2.screenpos) };
@@ -134,14 +137,23 @@ void ProcessTriangle(const VertexShader::OutputVertex& v0,
     if (registers.cull_mode == Regs::CullMode::KeepCounterClockWise) {
         // Reverse vertex order and use the CW code path.
         std::swap(vtxpos[1], vtxpos[2]);
+        std::swap(v1, v2);
     }
 
     if (registers.cull_mode != Regs::CullMode::KeepAll) {
         // Cull away triangles which are wound counter-clockwise.
-        if (SignedArea(vtxpos[0].xy(), vtxpos[1].xy(), vtxpos[2].xy()) <= 0)
-            return;
+        // TODO: Make work :(
+        if (SignedArea(vtxpos[0].xy(), vtxpos[1].xy(), vtxpos[2].xy()) <= 0) {
+            std::swap(vtxpos[1], vtxpos[2]);
+            std::swap(v1, v2);
+//            return;
+        }
     } else {
-        // TODO: Consider A check for degenerate triangles ("SignedArea == 0")
+        // TODO: Consider a check for degenerate triangles ("SignedArea == 0")
+        if (SignedArea(vtxpos[0].xy(), vtxpos[1].xy(), vtxpos[2].xy()) <= 0) {
+            std::swap(vtxpos[1], vtxpos[2]);
+            std::swap(v1, v2);
+        }
     }
 
     // TODO: Proper scissor rect test!

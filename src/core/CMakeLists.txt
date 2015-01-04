@@ -68,6 +68,7 @@ set(SRCS
             hle/service/ssl_c.cpp
             hle/config_mem.cpp
             hle/hle.cpp
+            hle/shared_page.cpp
             hle/svc.cpp
             hw/gpu.cpp
             hw/hw.cpp
@@ -161,6 +162,7 @@ set(HEADERS
             hle/result.h
             hle/function_wrappers.h
             hle/hle.h
+            hle/shared_page.h
             hle/svc.h
             hw/gpu.h
             hw/hw.h

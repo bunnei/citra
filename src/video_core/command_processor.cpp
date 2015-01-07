@@ -30,10 +30,6 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
     if (id >= registers.NumIds())
         return;
 
-    // If we're skipping this frame, only allow trigger IRQ
-    if (GPU::g_skip_frame && id != PICA_REG_INDEX(trigger_irq))
-        return;
-
     // TODO: Figure out how register masking acts on e.g. vs_uniform_setup.set_value
     u32 old_value = registers[id];
     registers[id] = (old_value & ~mask) | (value & mask);
@@ -53,6 +49,8 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
         case PICA_REG_INDEX(trigger_draw):
         case PICA_REG_INDEX(trigger_draw_indexed):
         {
+            if (GPU::g_skip_frame) return;
+
             DebugUtils::DumpTevStageConfig(registers.GetTevStages());
 
             if (g_debug_context)
@@ -185,6 +183,7 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
         }
 
         case PICA_REG_INDEX(vs_bool_uniforms):
+            if (GPU::g_skip_frame) return;
             for (unsigned i = 0; i < 16; ++i)
                 VertexShader::GetBoolUniform(i) = (registers.vs_bool_uniforms.Value() & (1 << i)) != 0;
 
@@ -195,6 +194,7 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
         case PICA_REG_INDEX_WORKAROUND(vs_int_uniforms[2], 0x2b3):
         case PICA_REG_INDEX_WORKAROUND(vs_int_uniforms[3], 0x2b4):
         {
+            if (GPU::g_skip_frame) return;
             int index = (id - PICA_REG_INDEX_WORKAROUND(vs_int_uniforms[0], 0x2b1));
             auto values = registers.vs_int_uniforms[index];
             VertexShader::GetIntUniform(index) = Math::Vec4<u8>(values.x, values.y, values.z, values.w);
@@ -212,6 +212,7 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
         case PICA_REG_INDEX_WORKAROUND(vs_uniform_setup.set_value[6], 0x2c7):
         case PICA_REG_INDEX_WORKAROUND(vs_uniform_setup.set_value[7], 0x2c8):
         {
+            if (GPU::g_skip_frame) return;
             auto& uniform_setup = registers.vs_uniform_setup;
 
             // TODO: Does actual hardware indeed keep an intermediate buffer or does
@@ -279,6 +280,7 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
         case PICA_REG_INDEX_WORKAROUND(vs_swizzle_patterns.set_word[6], 0x2dc):
         case PICA_REG_INDEX_WORKAROUND(vs_swizzle_patterns.set_word[7], 0x2dd):
         {
+            if (GPU::g_skip_frame) return;
             VertexShader::SubmitSwizzleDataChange(registers.vs_swizzle_patterns.offset, value);
             registers.vs_swizzle_patterns.offset++;
             break;

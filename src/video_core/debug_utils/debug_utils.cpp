@@ -489,7 +489,7 @@ const Math::Vec4<u8> LookupTexture(const u8* source, int x, int y, const Texture
             BitField<34, 3, u64> table_index_2;
             BitField<37, 3, u64> table_index_1;
 
-            union {
+            union Union2 {
                 // delta value + base value
                 BitField<40, 3, s64> db;
                 BitField<43, 5, u64> b;
@@ -501,7 +501,7 @@ const Math::Vec4<u8> LookupTexture(const u8* source, int x, int y, const Texture
                 BitField<59, 5, u64> r;
             } differential;
 
-            union {
+            union Union3 {
                 BitField<40, 4, u64> b2;
                 BitField<44, 4, u64> b1;
 
@@ -547,7 +547,7 @@ const Math::Vec4<u8> LookupTexture(const u8* source, int x, int y, const Texture
                 // Add modifier
                 unsigned table_index = (x < 2) ? table_index_2.Value() : table_index_1.Value();
 
-                static const auto etc1_modifier_table = std::array<std::array<u8, 2>, 8>{{
+                static const std::array<std::array<u8, 2>, 8> etc1_modifier_table = std::array<std::array<u8, 2>, 8>{{
                     {  2,  8 }, {  5, 17 }, {  9,  29 }, { 13,  42 },
                     { 18, 60 }, { 24, 80 }, { 33, 106 }, { 47, 183 }
                 }};
@@ -571,7 +571,7 @@ const Math::Vec4<u8> LookupTexture(const u8* source, int x, int y, const Texture
 
     default:
         LOG_ERROR(HW_GPU, "Unknown texture format: %x", (u32)info.format);
-        _dbg_assert_(HW_GPU, 0);
+        /*_dbg_assert_(HW_GPU, 0);*/
         return {};
     }
 }

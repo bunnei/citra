@@ -10,8 +10,10 @@
 #include <mutex>
 #include <string>
 
-#include <boost/algorithm/clamp.hpp>
 #include <boost/mpl/plus.hpp>
+
+#define clamp(val, low, high) (val < low) ? low : ((val > high) ? high : val) 
+
 
 #ifdef HAVE_PNG
 #include <png.h>
@@ -471,7 +473,7 @@ const Math::Vec4<u8> LookupTexture(const u8* source, int x, int y, const Texture
             source_ptr++;
         }
 
-        union {
+        union Union1 {
             // Each of these two is a collection of 16 bits (one per lookup value)
             BitField< 0, 16, u64> table_subindexes;
             BitField<16, 16, u64> negation_flags;
@@ -490,7 +492,7 @@ const Math::Vec4<u8> LookupTexture(const u8* source, int x, int y, const Texture
             BitField<34, 3, u64> table_index_2;
             BitField<37, 3, u64> table_index_1;
 
-            union {
+            union Union2 {
                 // delta value + base value
                 BitField<40, 3, s64> db;
                 BitField<43, 5, u64> b;
@@ -502,7 +504,7 @@ const Math::Vec4<u8> LookupTexture(const u8* source, int x, int y, const Texture
                 BitField<59, 5, u64> r;
             } differential;
 
-            union {
+            union Union3 {
                 BitField<40, 4, u64> b2;
                 BitField<44, 4, u64> b1;
 
@@ -548,7 +550,7 @@ const Math::Vec4<u8> LookupTexture(const u8* source, int x, int y, const Texture
                 // Add modifier
                 unsigned table_index = (x < 2) ? table_index_2.Value() : table_index_1.Value();
 
-                static const auto etc1_modifier_table = std::array<std::array<u8, 2>, 8>{{
+                static const std::array<std::array<u8, 2>, 8> etc1_modifier_table = std::array<std::array<u8, 2>, 8>{{
                     {  2,  8 }, {  5, 17 }, {  9,  29 }, { 13,  42 },
                     { 18, 60 }, { 24, 80 }, { 33, 106 }, { 47, 183 }
                 }};
@@ -557,14 +559,15 @@ const Math::Vec4<u8> LookupTexture(const u8* source, int x, int y, const Texture
                 if (GetNegationFlag(texel))
                     modifier *= -1;
 
-                ret.r() = boost::algorithm::clamp(ret.r() + modifier, 0, 255);
-                ret.g() = boost::algorithm::clamp(ret.g() + modifier, 0, 255);
-                ret.b() = boost::algorithm::clamp(ret.b() + modifier, 0, 255);
+                ret.r() = clamp(ret.r() + modifier, 0, 255);
+                ret.g() = clamp(ret.g() + modifier, 0, 255);
+                ret.b() = clamp(ret.b() + modifier, 0, 255);
 
                 return ret.Cast<u8>();
             }
-        } const *etc1_tile = reinterpret_cast<decltype(etc1_tile)>(source_ptr);
-
+        };
+        const Union1 *etc1_tile = reinterpret_cast<const Union1*>(source_ptr);
+        
         alpha >>= 4 * ((x & 3) * 4 + (y & 3));
         return Math::MakeVec(etc1_tile->GetRGB(x & 3, y & 3),
                              disable_alpha ? (u8)255 : Color::Convert4To8(alpha & 0xF));
@@ -572,7 +575,7 @@ const Math::Vec4<u8> LookupTexture(const u8* source, int x, int y, const Texture
 
     default:
         LOG_ERROR(HW_GPU, "Unknown texture format: %x", (u32)info.format);
-        _dbg_assert_(HW_GPU, 0);
+        /*_dbg_assert_(HW_GPU, 0);*/
         return {};
     }
 }

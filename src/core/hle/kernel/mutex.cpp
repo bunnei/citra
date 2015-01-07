@@ -168,6 +168,7 @@ Handle CreateMutex(bool initial_locked, const std::string& name) {
 ResultVal<bool> Mutex::WaitSynchronization() {
     bool wait = locked;
     if (locked) {
+        waiting_threads.push_back(GetCurrentThreadHandle());
         Kernel::WaitCurrentThread(WAITTYPE_MUTEX, GetHandle());
     }
     else {

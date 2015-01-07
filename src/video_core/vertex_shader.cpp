@@ -124,7 +124,7 @@ static void ProcessShaderCode(VertexShaderState& state) {
 
         auto call = [&](VertexShaderState& state, u32 offset, u32 num_instructions,
                         u32 return_offset,
-                        std::function<int(VertexShaderState&)> branch_end_callback = [](VertexShaderState&) { return true; }) {
+                        std::function<int(VertexShaderState&)> branch_end_callback) {
             state.program_counter = &shader_memory[offset] - 1; // -1 to make sure when incrementing the PC we end up at the correct offset
             state.call_stack.push({ offset + num_instructions, return_offset, branch_end_callback });
         };
@@ -165,6 +165,8 @@ static void ProcessShaderCode(VertexShaderState& state) {
 
             const float24* src1_ = LookupSourceRegister(instr.common.GetSrc1(is_inverted) + address_offset);
             const float24* src2_ = LookupSourceRegister(instr.common.GetSrc2(is_inverted));
+
+            if (!src1_ || !src2_) break;
 
             const bool negate_src1 = ((bool)swizzle.negate_src1 != false);
             const bool negate_src2 = ((bool)swizzle.negate_src2 != false);
@@ -466,7 +468,8 @@ static void ProcessShaderCode(VertexShaderState& state) {
                 call(state,
                      instr.flow_control.dest_offset,
                      instr.flow_control.num_instructions,
-                     binary_offset + 1);
+                     binary_offset + 1,
+                     [](VertexShaderState&) { return true; });
                 break;
 
             case Instruction::OpCode::CALLU:
@@ -474,7 +477,9 @@ static void ProcessShaderCode(VertexShaderState& state) {
                     call(state,
                         instr.flow_control.dest_offset,
                         instr.flow_control.num_instructions,
-                        binary_offset + 1);
+                        binary_offset + 1,
+                        [](VertexShaderState&) { return true; }
+                        );
                 }
                 break;
 
@@ -483,7 +488,9 @@ static void ProcessShaderCode(VertexShaderState& state) {
                     call(state,
                         instr.flow_control.dest_offset,
                         instr.flow_control.num_instructions,
-                        binary_offset + 1);
+                        binary_offset + 1,
+                        [](VertexShaderState&) { return true; }
+                    );
                 }
                 break;
 
@@ -495,12 +502,14 @@ static void ProcessShaderCode(VertexShaderState& state) {
                     call(state,
                          binary_offset + 1,
                          instr.flow_control.dest_offset - binary_offset - 1,
-                         instr.flow_control.dest_offset + instr.flow_control.num_instructions);
+                         instr.flow_control.dest_offset + instr.flow_control.num_instructions,
+                         [](VertexShaderState&) { return true; });
                 } else {
                     call(state,
                          instr.flow_control.dest_offset,
                          instr.flow_control.num_instructions,
-                         instr.flow_control.dest_offset + instr.flow_control.num_instructions);
+                         instr.flow_control.dest_offset + instr.flow_control.num_instructions,
+                         [](VertexShaderState&) { return true; });
                 }
 
                 break;
@@ -513,12 +522,14 @@ static void ProcessShaderCode(VertexShaderState& state) {
                     call(state,
                          binary_offset + 1,
                          instr.flow_control.dest_offset - binary_offset - 1,
-                         instr.flow_control.dest_offset + instr.flow_control.num_instructions);
+                         instr.flow_control.dest_offset + instr.flow_control.num_instructions,
+                         [](VertexShaderState&) { return true; });
                 } else {
                     call(state,
                          instr.flow_control.dest_offset,
                          instr.flow_control.num_instructions,
-                         instr.flow_control.dest_offset + instr.flow_control.num_instructions);
+                         instr.flow_control.dest_offset + instr.flow_control.num_instructions,
+                         [](VertexShaderState&) { return true; });
                 }
 
                 break;

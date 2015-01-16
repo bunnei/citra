@@ -12,21 +12,23 @@
 namespace Kernel {
 
 /**
- * Changes whether an event is locked or not
+ * Changes whether an event is signaled or not
  * @param handle Handle to event to change
- * @param locked Boolean locked value to set event
+ * @param signaled Boolean signaled value to set event
  */
-ResultCode SetEventLocked(const Handle handle, const bool locked);
+ResultCode SetEventSignaled(const Handle handle, const bool signaled);
 
 /**
  * Signals an event
  * @param handle Handle to event to signal
+ * @return Result of operation, 0 on success, otherwise error code
  */
 ResultCode SignalEvent(const Handle handle);
 
 /**
  * Clears an event
  * @param handle Handle to event to clear
+ * @return Result of operation, 0 on success, otherwise error code
  */
 ResultCode ClearEvent(Handle handle);
 

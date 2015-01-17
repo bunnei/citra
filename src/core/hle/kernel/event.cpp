@@ -28,11 +28,11 @@ public:
     bool signaled;                          ///< Whether the event has already been signaled
     std::string name;                       ///< Name of event (optional)
 
-    ResultVal<bool> WaitSynchronization() override {
+    ResultVal<bool> WaitSynchronization(unsigned index) override {
         bool wait = !signaled;
         if (wait) {
             AddWaitingThread(GetCurrentThread());
-            Kernel::WaitCurrentThread(WAITTYPE_EVENT, this);
+            Kernel::WaitCurrentThread_WaitSynchronization(WAITTYPE_EVENT, this, index);
         }
         return MakeResult<bool>(wait);
     }
@@ -56,7 +56,7 @@ ResultCode SignalEvent(const Handle handle) {
 
     evt->signaled = true;
 
-    bool thread_awoken = evt->ResumeAllWaitingThreads();
+    bool thread_awoken = evt->ReleaseAllWaitingThreads();
 
     // If no threads were awoken by the event, it shouldn't be reset
     if (evt->reset_type != RESETTYPE_STICKY && thread_awoken)

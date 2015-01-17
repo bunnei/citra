@@ -30,23 +30,23 @@ void WaitObject::RemoveWaitingThread(Thread* thread) {
         waiting_threads.erase(itr);
 }
 
-Thread* WaitObject::ResumeNextThread() {
+Thread* WaitObject::ReleaseNextThread() {
     if (waiting_threads.empty())
         return nullptr;
 
     auto next_thread = waiting_threads.front();
 
-    next_thread->ResumeFromWait();
+    next_thread->ReleaseFromWait(this);
     waiting_threads.erase(waiting_threads.begin());
 
     return next_thread.get();
 }
 
-bool WaitObject::ResumeAllWaitingThreads() {
+bool WaitObject::ReleaseAllWaitingThreads() {
     bool res = false;
     auto waiting_threads_copy = waiting_threads;
     for (auto thread : waiting_threads_copy) {
-        thread->ResumeFromWait();
+        thread->ReleaseFromWait(this);
         res = true;
     }
     waiting_threads.clear();

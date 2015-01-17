@@ -66,9 +66,10 @@ public:
 
     /**
      * Wait for kernel object to synchronize.
+     * @param index Index of wait object (only applies to WaitSynchronizationN)
      * @return True if the current thread should wait as a result of the wait
      */
-    virtual ResultVal<bool> WaitSynchronization() {
+    virtual ResultVal<bool> WaitSynchronization(unsigned index) {
         LOG_ERROR(Kernel, "(UNIMPLEMENTED)");
         return UnimplementedFunction(ErrorModule::Kernel);
     }
@@ -111,16 +112,16 @@ public:
     void RemoveWaitingThread(Thread* thead);
 
     /**
-     * Resumes (and removes) the next thread waiting on this object
+     * Releases (and removes) the next thread waiting on this object
      * @return Pointer to the thread that was resumed, nullptr if no threads are waiting
      */
-    Thread* ResumeNextThread();
+    Thread* ReleaseNextThread();
 
     /**
-     * Resumes all threads waiting on this object
+     * Releases all threads waiting on this object
      * @return True if any threads were resumed, otherwise false
      */
-    bool ResumeAllWaitingThreads();
+    bool ReleaseAllWaitingThreads();
 
 private:
     std::vector<SharedPtr<Thread>> waiting_threads; ///< Threads waiting on this object

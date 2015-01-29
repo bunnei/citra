@@ -70,12 +70,10 @@ struct Regs {
         union {
             u32 value_32bit;
 
-            BitField<0, 16, u32> value_16bit;
-
-            // TODO: Verify component order
-            BitField< 0, 8, u32> value_24bit_r;
-            BitField< 8, 8, u32> value_24bit_g;
-            BitField<16, 8, u32> value_24bit_b;
+            BitField< 0, 8, u32> value_a;
+            BitField< 8, 8, u32> value_b;
+            BitField<16, 8, u32> value_g;
+            BitField<24, 8, u32> value_r;
         };
 
         union {

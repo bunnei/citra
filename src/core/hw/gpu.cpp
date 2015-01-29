@@ -86,18 +86,24 @@ inline void Write(u32 addr, const T data) {
             //       multiples of the fill unit.
             if (config.fill_24bit) {
                 for (u8* ptr = start; ptr != end; ptr += 3) {
-                    ptr[0] = config.value_24bit_b;
-                    ptr[1] = config.value_24bit_g;
-                    ptr[2] = config.value_24bit_r;
+                    ptr[0] = config.value_b;
+                    ptr[1] = config.value_g;
+                    ptr[2] = config.value_r;
                 }
                 LOG_ERROR(HW_GPU, "24 bit memory fills partially implemented! %x", config.value_32bit);
             } else if (config.fill_32bit) {
-                for (u32* ptr = (u32*)start; ptr != (u32*)end; ++ptr)
-                    *ptr = config.value_32bit;
+                for (u8* ptr = start; ptr != end; ptr += 4) {
+                    ptr[0] = config.value_b;
+                    ptr[1] = config.value_g;
+                    ptr[2] = config.value_r;
+                    ptr[3] = config.value_a;
+                }
             } else {
                 // 16-bit fill
-                for (u16* ptr = (u16*)start; ptr != (u16*)end; ++ptr)
-                    *ptr = config.value_16bit;
+                for (u8* ptr = start; ptr != end; ptr += 2) {
+                    ptr[0] = config.value_b;
+                    ptr[1] = config.value_g;
+                }
             }
 
             LOG_TRACE(HW_GPU, "MemoryFill from 0x%08x to 0x%08x", config.GetStartAddress(), config.GetEndAddress());

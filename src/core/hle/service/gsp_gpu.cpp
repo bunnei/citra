@@ -271,6 +271,7 @@ static void RegisterInterruptRelayQueue(Service::Interface* self) {
     u32 flags = cmd_buff[1];
 
     g_interrupt_event = Kernel::g_handle_table.Get<Kernel::Event>(cmd_buff[3]);
+    g_interrupt_event->name = "GSP_GPU::interrupt_event";
     ASSERT_MSG((g_interrupt_event != nullptr), "handle is not valid!");
     g_shared_memory = Kernel::SharedMemory::Create("GSPSharedMem");
 

@@ -194,6 +194,7 @@ inline void Write(u32 addr, const T data) {
         {
             u32* buffer = (u32*)Memory::GetPointer(Memory::PhysicalToVirtualAddress(config.GetPhysicalAddress()));
             Pica::CommandProcessor::ProcessCommandList(buffer, config.size);
+            GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::P3D);
         }
         break;
     }

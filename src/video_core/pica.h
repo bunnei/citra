@@ -268,7 +268,8 @@ struct Regs {
             AddSigned       = 3,
             Lerp            = 4,
             Subtract        = 5,
-
+            Dot3RGB         = 6,
+            Dot3RGBA        = 7,
             MultiplyThenAdd = 8,
             AddThenMultiply = 9,
         };

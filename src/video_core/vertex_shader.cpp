@@ -229,6 +229,22 @@ static void ProcessShaderCode(VertexShaderState& state) {
                 break;
             }
 
+            case Instruction::OpCode::FLR:
+            {
+                for (int i = 0; i < 4; ++i)
+                    dest[i] = float24::FromFloat32(floor(src1[i].ToFloat32()));
+
+                break;
+            }
+
+            case Instruction::OpCode::SLTI:
+            {
+                for (int i = 0; i < 4; ++i)
+                    dest[i] = float24::FromFloat32((src1[i] < src2[i]) ? 1.0f : 0.0f);
+
+                break;
+            }
+
             case Instruction::OpCode::MAX:
                 for (int i = 0; i < 4; ++i) {
                     if (!swizzle.DestComponentEnabled(i))

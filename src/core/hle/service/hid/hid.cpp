@@ -132,6 +132,8 @@ void HIDInit() {
     g_event_accelerometer  = Event::Create(RESETTYPE_ONESHOT, "HID:EventAccelerometer");
     g_event_gyroscope      = Event::Create(RESETTYPE_ONESHOT, "HID:EventGyroscope");
     g_event_debug_pad      = Event::Create(RESETTYPE_ONESHOT, "HID:EventDebugPad");
+
+    g_event_gyroscope->Signal();
 }
 
 void HIDShutdown() {

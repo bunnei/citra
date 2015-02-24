@@ -98,6 +98,8 @@ static void RegisterInterruptEvents(Service::Interface* self) {
     auto evt = Kernel::g_handle_table.Get<Kernel::Event>(cmd_buff[4]);
     if (evt != nullptr) {
         interrupt_event = evt;
+        interrupt_event->name = "DSP_DSP::interrupt_event";
+
         cmd_buff[1] = 0; // No error
     } else {
         LOG_ERROR(Service_DSP, "called with invalid handle=%08X", cmd_buff[4]);

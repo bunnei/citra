@@ -46,7 +46,6 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
     switch(id) {
         // Trigger IRQ
         case PICA_REG_INDEX(trigger_irq):
-            GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::P3D);
             return;
 
         // It seems like these trigger vertex rendering

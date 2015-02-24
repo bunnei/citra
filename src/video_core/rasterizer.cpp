@@ -440,6 +440,7 @@ static void ProcessTriangleInternal(const VertexShader::OutputVertex& v0,
                         return result.Cast<u8>();
                     }
 
+                    case Operation::Dot3RGB:
                     case Operation::Dot3RGBA:
                     {
                         //return std::inner_product(begin(a), end(a), begin(b), 0.0);
@@ -493,8 +494,17 @@ static void ProcessTriangleInternal(const VertexShader::OutputVertex& v0,
                     case Operation::Subtract:
                         return std::max(0, (int)input[0] - (int)input[1]);
 
-                    case Operation::Dot3RGBA:
+                    case Operation::Dot3RGB:
                         return 255;
+                    
+                    case Operation::Dot3RGBA:
+                    {
+                        int a[] = { input[0].r(), input[0].g(), input[0].b() };
+                        int b[] = { input[1].r(), input[1].g(), input[1].b() };
+
+                        auto res = std::inner_product(a, a + sizeof(a) / sizeof(a[0]), b, 0);
+                        return res;
+                    }
 
                     case Operation::MultiplyThenAdd:
                         return std::min(255, (input[0] * input[1] + 255 * input[2]) / 255);

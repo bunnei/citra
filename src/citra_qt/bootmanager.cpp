@@ -44,8 +44,12 @@ void EmuThread::run() {
             if (!was_active)
                 emit DebugModeLeft();
 
-            Core::RunLoop();
-
+            try {
+                Core::RunLoop();
+            } catch (const char* str) {
+                emit UserError(str);
+            }
+            
             was_active = running || exec_step;
             if (!was_active && !stop_run)
                 emit DebugModeEntered();

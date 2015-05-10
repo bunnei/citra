@@ -219,6 +219,7 @@ void GMainWindow::BootGame(std::string filename) {
     connect(emu_thread.get(), SIGNAL(DebugModeLeft()), disasmWidget, SLOT(OnDebugModeLeft()), Qt::BlockingQueuedConnection);
     connect(emu_thread.get(), SIGNAL(DebugModeLeft()), registersWidget, SLOT(OnDebugModeLeft()), Qt::BlockingQueuedConnection);
     connect(emu_thread.get(), SIGNAL(DebugModeLeft()), callstackWidget, SLOT(OnDebugModeLeft()), Qt::BlockingQueuedConnection);
+    connect(emu_thread.get(), SIGNAL(UserError(const char*)), this, SLOT(OnUserError(const char*)));
 
     // Update the GUI
     registersWidget->OnDebugModeEntered();
@@ -323,6 +324,11 @@ void GMainWindow::ToggleWindowMode() {
 void GMainWindow::OnConfigure()
 {
     //GControllerConfigDialog* dialog = new GControllerConfigDialog(controller_ports, this);
+}
+
+void GMainWindow::OnUserError(const char* str)
+{
+    QMessageBox::information(this, "Error", str);
 }
 
 void GMainWindow::closeEvent(QCloseEvent* event)

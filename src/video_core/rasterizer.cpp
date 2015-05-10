@@ -16,6 +16,8 @@
 #include "vertex_shader.h"
 #include "video_core/utils.h"
 
+extern bool thrown;
+
 namespace Pica {
 
 namespace Rasterizer {
@@ -403,6 +405,13 @@ static void ProcessTriangleInternal(const VertexShader::OutputVertex& v0,
 
                     case Source::Texture2:
                         return texture_color[2];
+
+                    case Source::Texture3:
+                        if (!thrown) {
+                            thrown = true;
+                            throw "Uses procedural textures, tell bunnei!";
+                        }
+                        return{ 255, 0, 255, 255 };
 
                     case Source::PreviousBuffer:
                         return combiner_buffer;

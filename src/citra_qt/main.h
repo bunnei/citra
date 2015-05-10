@@ -70,6 +70,7 @@ private slots:
     void OnConfigure();
     void OnDisplayTitleBars(bool);
     void ToggleWindowMode();
+    void OnUserError(const char* str);
 
 private:
     Ui::MainWindow ui;

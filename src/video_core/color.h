@@ -61,6 +61,15 @@ inline const Math::Vec4<u8> DecodeRGBA8(const u8* bytes) {
 }
 
 /**
+ * Decode a color stored in ABGR8 format
+ * @param bytes Pointer to encoded source color
+ * @return Result color decoded as Math::Vec4<u8>
+ */
+inline const Math::Vec4<u8> DecodeABGR8(const u8* bytes) {
+    return { bytes[0], bytes[1], bytes[2], bytes[3] };
+}
+
+/**
  * Decode a color stored in RGB8 format
  * @param bytes Pointer to encoded source color
  * @return Result color decoded as Math::Vec4<u8>

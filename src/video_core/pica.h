@@ -199,7 +199,98 @@ struct Regs {
     INSERT_PADDING_WORDS(0x2);
     TextureConfig texture2;
     BitField<0, 4, TextureFormat> texture2_format;
-    INSERT_PADDING_WORDS(0x21);
+
+    INSERT_PADDING_WORDS(0x9);
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Procedural textures
+
+    struct ProcTexture {
+        enum class Clamp : u32 {
+            ClampToZero = 0x0,
+            ClampToEdge = 0x1,
+            SymmetricalRepeat = 0x2,
+            MirroredRepeat = 0x3,
+            Pulse = 0x4,
+        };
+
+        enum class Map : u32 {
+            U = 0x0,
+            USquared = 0x1,
+            V = 0x2,
+            VSquared = 0x3,
+            Add = 0x4,
+            AddSquared = 0x5,
+            AddSquareRoot= 0x6,
+            Min = 0x7,
+            Max = 0x8,
+            RMax = 0x9,
+        };
+
+        enum class Shift : u32 {
+            None = 0x0,
+            Odd = 0x1,
+            Even = 0x2,
+        };
+
+        enum class ReferenceTable : u32 {
+            Noise = 0x0,
+            RGBMap = 0x2,
+            AlphaMap = 0x3,
+            Color = 0x4,
+            ColorDiff = 0x5,
+        };
+
+        // 0xa8
+        union {
+            BitField< 0, 3, Clamp> clamp_u;
+            BitField< 3, 3, Clamp> clamp_v;
+            BitField< 6, 4, Map> color_map;
+            BitField<10, 4, Map> alpha_map;
+            BitField<14, 1, u32> alpha_separate;
+            BitField<15, 1, u32> noise_enable;
+            BitField<16, 2, Shift> shift_u;
+            BitField<18, 2, Shift> shift_v;
+            BitField<20, 8, u32> bias_1;
+        };
+
+        INSERT_PADDING_WORDS(0x3);
+
+        // 0xac
+        union {
+            BitField< 0, 3, u32> min_filter;
+            BitField<11, 8, u32> width;
+            BitField<18, 8, u32> bias_2;
+        };
+
+        // 0xad
+        union {
+            BitField< 0, 8, u32> offset; // Offset into color LUT to use
+        };
+
+        INSERT_PADDING_WORDS(0x1);
+
+        // 0xaf
+        union {
+            BitField< 0, 8, u32> index;
+            BitField< 8, 4, ReferenceTable> attribute;
+        } lut_reference;
+
+        // Uniform data is written here - 0xb0
+        u32 lut_data;
+        u32 lut_data_1;
+        u32 lut_data_2;
+        u32 lut_data_3;
+        u32 lut_data_4;
+        u32 lut_data_5;
+        u32 lut_data_6;
+        u32 lut_data_7;
+
+    } proc_texture;
+
+    INSERT_PADDING_WORDS(0x8);
+
+    ////////////////////////////////////////////////////////////////////////////
 
     struct FullTextureConfig {
         const bool enabled;
@@ -827,6 +918,7 @@ struct Regs {
         ADD_FIELD(texture1_format);
         ADD_FIELD(texture2);
         ADD_FIELD(texture2_format);
+        ADD_FIELD(proc_texture);
         ADD_FIELD(tev_stage0);
         ADD_FIELD(tev_stage1);
         ADD_FIELD(tev_stage2);
@@ -904,6 +996,7 @@ ASSERT_REG_POSITION(texture1, 0x91);
 ASSERT_REG_POSITION(texture1_format, 0x96);
 ASSERT_REG_POSITION(texture2, 0x99);
 ASSERT_REG_POSITION(texture2_format, 0x9e);
+ASSERT_REG_POSITION(proc_texture, 0xa8);
 ASSERT_REG_POSITION(tev_stage0, 0xc0);
 ASSERT_REG_POSITION(tev_stage1, 0xc8);
 ASSERT_REG_POSITION(tev_stage2, 0xd0);

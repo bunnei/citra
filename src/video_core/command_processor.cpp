@@ -8,6 +8,7 @@
 
 #include "clipper.h"
 #include "command_processor.h"
+#include "color.h"
 #include "math.h"
 #include "pica.h"
 #include "primitive_assembly.h"
@@ -22,6 +23,20 @@ namespace Pica {
 Regs registers;
 
 namespace CommandProcessor {
+
+static struct {
+    int index;
+    f32 rgb_func_map[256];
+    Math::Vec4<u8> color_map[256];
+} proc_texture_mem;
+
+f32 LookupRGBFunc(int index) {
+    return proc_texture_mem.rgb_func_map[index];
+}
+
+const Math::Vec4<u8>& LookupProcTextureColorMap(int index) {
+    return proc_texture_mem.color_map[index];
+}
 
 static int float_regs_counter = 0;
 
@@ -335,6 +350,61 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
             registers.vs_swizzle_patterns.offset++;
             break;
         }
+
+        //case PICA_REG_INDEX(proc_texture):
+        //    //printf("value: %08X\n", value);
+        //    break;
+
+        //case PICA_REG_INDEX(proc_texture_4):
+        //    //printf("value: %08X, width: %d, bias: %d\n", value, registers.proc_texture_4.width.Value(), registers.proc_texture_4.bias.Value());
+        //    break;
+
+        case PICA_REG_INDEX_WORKAROUND(proc_texture.lut_reference, 0xaf):
+            //registers.proc_texture_lut.refTable
+            //printf("lut: %08X\n", registers.proc_texture.lut_reference.attribute.Value());
+            proc_texture_mem.index = 0;
+            break;
+
+        case PICA_REG_INDEX(proc_texture.lut_data, 0xb0):
+        {
+            //printf("lut_data: %08X, counter: %d\n", value, proc_texture_mem.index);
+
+            switch (registers.proc_texture.lut_reference.attribute) {
+            case Pica::Regs::ProcTexture::ReferenceTable::RGBMap:
+                proc_texture_mem.rgb_func_map[proc_texture_mem.index] = static_cast<float>(value & 0xfff) / 4095.f;
+                break;
+            case Pica::Regs::ProcTexture::ReferenceTable::Color:
+                proc_texture_mem.color_map[proc_texture_mem.index] = Color::DecodeABGR8((u8*)&value);
+                break;
+            }
+
+            proc_texture_mem.index++;
+
+            break;
+        }
+
+            // Unused by proctexclamp
+ /*       case PICA_REG_INDEX(proc_texture_lut_data_1):
+            printf("wtf1\n");
+            break;
+        case PICA_REG_INDEX(proc_texture_lut_data_2):
+            printf("wtf1\n");
+            break;
+        case PICA_REG_INDEX(proc_texture_lut_data_3):
+            printf("wtf1\n");
+            break;
+        case PICA_REG_INDEX(proc_texture_lut_data_4):
+            printf("wtf1\n");
+            break;
+        case PICA_REG_INDEX(proc_texture_lut_data_5):
+            printf("wtf1\n");
+            break;
+        case PICA_REG_INDEX(proc_texture_lut_data_6):
+            printf("wtf1\n");
+            break;
+        case PICA_REG_INDEX(proc_texture_lut_data_7):
+            printf("wtf1\n");
+            break;*/
 
         default:
             break;

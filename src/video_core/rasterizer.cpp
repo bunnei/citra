@@ -17,9 +17,17 @@
 #include "pica.h"
 #include "rasterizer.h"
 #include "vertex_shader.h"
+#include "command_processor.h"
 #include "video_core/utils.h"
 
 namespace Pica {
+
+namespace CommandProcessor {
+
+f32 LookupRGBFunc(int index);
+const Math::Vec4<u8>& LookupProcTextureColorMap(int index);
+
+}
 
 namespace Rasterizer {
 
@@ -189,7 +197,103 @@ static int SignedArea (const Math::Vec2<Fix12P4>& vtx1,
     return Math::Cross(vec1, vec2).z;
 };
 
+
 static Common::Profiling::TimingCategory rasterization_category("Rasterization");
+
+static const Math::Vec4<u8> ProceduralTexture(float u, float v) {
+    static auto Clamp = [](Regs::ProcTexture::Clamp clamp, float val) {
+        switch (clamp) {
+        case Regs::ProcTexture::Clamp::ClampToEdge:
+            return (val > 1.f) ? 1.f : val;
+
+        case Regs::ProcTexture::Clamp::SymmetricalRepeat:
+            return val - unsigned(val);
+
+        case Regs::ProcTexture::Clamp::MirroredRepeat:
+        {
+            float res = val - unsigned(val);
+            return (unsigned(val) % 2 == 0) ? res : 1.f - res;
+        }
+
+        default:
+            LOG_CRITICAL(HW_GPU, "Unknown clamp mode %x\n", clamp);
+            UNIMPLEMENTED();
+            return 0.0f;
+        }
+    };
+
+    static auto Shift = [](Regs::ProcTexture::Shift shift, Regs::ProcTexture::Clamp clamp, float x, float y) {
+        float offset = (clamp == Regs::ProcTexture::Clamp::MirroredRepeat) ? 1.f : 0.5f;
+
+        switch (shift) {
+        case Regs::ProcTexture::Shift::None:
+            return x;
+
+        case Regs::ProcTexture::Shift::Odd:
+            return x + (unsigned(y) / 2) % 2 * offset;
+
+        case Regs::ProcTexture::Shift::Even:
+            return x + ((unsigned(y) + 1) / 2) % 2 * offset;
+        }
+
+        LOG_CRITICAL(HW_GPU, "Unknown shift mode %x\n", shift);
+        UNIMPLEMENTED();
+        return 0.0f;
+    };
+
+    static auto MapShape = [](Regs::ProcTexture::Map map, f32 u, f32 v) {
+        switch (map) {
+        case Regs::ProcTexture::Map::U:
+            return u;
+
+        case Regs::ProcTexture::Map::USquared:
+            return u*u;
+
+        case Regs::ProcTexture::Map::V:
+            return v;
+
+        case Regs::ProcTexture::Map::VSquared:
+            return v*v;
+
+        case Regs::ProcTexture::Map::Add:
+            return (u + v) / 2.f;
+
+        case Regs::ProcTexture::Map::AddSquared:
+            return (u*u + v*v) / 2.f;
+
+        case Regs::ProcTexture::Map::AddSquareRoot:
+            return std::sqrtf(u*u + v*v);
+
+        case Regs::ProcTexture::Map::Min:
+            return std::min(u, v);
+
+        case Regs::ProcTexture::Map::Max:
+            return std::max(u, v);
+
+        case Regs::ProcTexture::Map::RMax:
+            return (((u + v) / 2.f) + std::sqrtf(u*u + v*v)) / 2.f;
+        }
+
+        LOG_CRITICAL(HW_GPU, "Unknown map mode %x\n", map);
+        UNIMPLEMENTED();
+        return 0.0f;
+    };
+
+    float s = u;
+    float t = v;
+
+    s = Shift(registers.proc_texture.shift_u, registers.proc_texture.clamp_u, s, v);
+    t = Shift(registers.proc_texture.shift_v, registers.proc_texture.clamp_v, t, u);
+
+    s = Clamp(registers.proc_texture.clamp_u, s);
+    t = Clamp(registers.proc_texture.clamp_v, t);
+
+    f32 g = MapShape(registers.proc_texture.color_map, s, t);
+
+    u8 lookup = CommandProcessor::LookupRGBFunc(int(g * 127)) * registers.proc_texture.width;
+
+    return CommandProcessor::LookupProcTextureColorMap(lookup);
+}
 
 /**
  * Helper function for ProcessTriangle with the "reversed" flag to allow for implementing
@@ -410,6 +514,9 @@ static void ProcessTriangleInternal(const VertexShader::OutputVertex& v0,
 
                     case Source::Texture2:
                         return texture_color[2];
+
+                    case Source::Texture3:
+                        return ProceduralTexture(uv[0].u().ToFloat32(), uv[0].v().ToFloat32());
 
                     case Source::PreviousBuffer:
                         return combiner_buffer;

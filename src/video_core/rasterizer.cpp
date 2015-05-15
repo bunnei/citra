@@ -290,6 +290,8 @@ static const Math::Vec4<u8> ProceduralTexture(float u, float v) {
 
     f32 g = MapShape(registers.proc_texture.color_map, s, t);
 
+    g = std::max(0.f, std::min(g, 1.f)); // Clamp to [0.f, 1.f]
+
     u8 lookup = CommandProcessor::LookupRGBFunc(int(g * 127)) * registers.proc_texture.width;
 
     return CommandProcessor::LookupProcTextureColorMap(lookup);

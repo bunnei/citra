@@ -282,18 +282,21 @@ static const Math::Vec4<u8> ProceduralTexture(float u, float v) {
     float s = u;
     float t = v;
 
+    // Optionally shift U/V coordinates within an integer group
     s = Shift(registers.proc_texture.shift_u, registers.proc_texture.clamp_u, s, v);
     t = Shift(registers.proc_texture.shift_v, registers.proc_texture.clamp_v, t, u);
 
-    s = Clamp(registers.proc_texture.clamp_u, s);
-    t = Clamp(registers.proc_texture.clamp_v, t);
+    // Apply clamp function to convert U/V coordinates to [0.f, 1.f] range
+    s = std::abs(Clamp(registers.proc_texture.clamp_u, s));
+    t = std::abs(Clamp(registers.proc_texture.clamp_v, t));
 
-    f32 g = MapShape(registers.proc_texture.color_map, s, t);
+    // Map shape function to convert U/V coordinates to a predined shape
+    f32 g = std::max(0.f, std::min(MapShape(registers.proc_texture.color_map, s, t), 1.f));
 
-    g = std::max(0.f, std::min(g, 1.f)); // Clamp to [0.f, 1.f]
-
+    // Apply user-defined function to result of shape map
     u8 lookup = CommandProcessor::LookupRGBFunc(int(g * 127)) * registers.proc_texture.width;
 
+    // Lookup result color from user-defined color LUT
     return CommandProcessor::LookupProcTextureColorMap(lookup);
 }
 

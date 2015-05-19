@@ -282,6 +282,14 @@ static const Math::Vec4<u8> ProceduralTexture(float u, float v) {
     float s = u;
     float t = v;
 
+    //LOG_CRITICAL(HW_GPU, "%04X %04X %04X %04X %04X %04X",
+    //    registers.proc_texture.noise_u0.Value(),
+    //    registers.proc_texture.noise_v0.Value(),
+    //    registers.proc_texture.noise_u1.Value(),
+    //    registers.proc_texture.noise_v1.Value(),
+    //    registers.proc_texture.noise_u2.Value(),
+    //    registers.proc_texture.noise_v2.Value());
+
     // Optionally shift U/V coordinates within an integer group
     s = Shift(registers.proc_texture.shift_u, registers.proc_texture.clamp_u, s, v);
     t = Shift(registers.proc_texture.shift_v, registers.proc_texture.clamp_v, t, u);

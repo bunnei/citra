@@ -254,7 +254,23 @@ struct Regs {
             BitField<20, 8, u32> bias_1;
         };
 
-        INSERT_PADDING_WORDS(0x3);
+        // 0xa9
+        union {
+            BitField< 0, 16, u32> noise_u2;
+            BitField<16, 16, u32> noise_u1;
+        };
+
+        // 0xaa
+        union {
+            BitField< 0, 16, u32> noise_v2;
+            BitField<16, 16, u32> noise_v1;
+        };
+
+        // 0xab
+        union {
+            BitField< 0, 16, u32> noise_u0;
+            BitField<16, 16, u32> noise_v0;
+        };
 
         // 0xac
         union {

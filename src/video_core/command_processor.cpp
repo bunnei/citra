@@ -27,8 +27,13 @@ namespace CommandProcessor {
 static struct {
     int index;
     f32 rgb_func_map[256];
+    f32 noise_func_map[256];
     Math::Vec4<u8> color_map[256];
 } proc_texture_mem;
+
+f32 LookupNoiseFunc(int index) {
+    return proc_texture_mem.noise_func_map[index];
+}
 
 f32 LookupRGBFunc(int index) {
     return proc_texture_mem.rgb_func_map[index];
@@ -370,12 +375,19 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
             //printf("lut_data: %08X, counter: %d\n", value, proc_texture_mem.index);
 
             switch (registers.proc_texture.lut_reference.attribute) {
+            case Pica::Regs::ProcTexture::ReferenceTable::Noise:
+                proc_texture_mem.noise_func_map[proc_texture_mem.index] = static_cast<float>(value & 0xfff) / 4095.f;
+                break;
             case Pica::Regs::ProcTexture::ReferenceTable::RGBMap:
                 proc_texture_mem.rgb_func_map[proc_texture_mem.index] = static_cast<float>(value & 0xfff) / 4095.f;
                 break;
             case Pica::Regs::ProcTexture::ReferenceTable::Color:
                 proc_texture_mem.color_map[proc_texture_mem.index] = Color::DecodeABGR8((u8*)&value);
                 break;
+            case Pica::Regs::ProcTexture::ReferenceTable::ColorDiff:
+                break; // Ignore
+            default:
+                LOG_CRITICAL(HW_GPU, "unknown attribute reference: %d!", registers.proc_texture.lut_reference.attribute.Value());
             }
 
             proc_texture_mem.index++;

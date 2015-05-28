@@ -20,6 +20,13 @@ namespace IR {
  */
 void GetHandles(Interface* self);
 
+void InitializeIrNopShared(Service::Interface* self);
+void FinalizeIrNop(Service::Interface* self);
+void RequireConnection(Service::Interface* self);
+void Disconnect(Service::Interface* self);
+void GetConnectionStatusEvent(Service::Interface* self);
+void GetReceiveEvent(Service::Interface* self);
+void SendIrNop(Service::Interface* self);
 /// Initialize IR service
 void Init();
 

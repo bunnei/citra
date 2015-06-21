@@ -757,8 +757,8 @@ void RasterizerOpenGL::SyncBoolUniforms() {
 void RasterizerOpenGL::SyncIntUniform(u32 uniform_index) {
     if (uniform_i[uniform_index] != -1)
         glUniform4iv(uniform_i[uniform_index], 1, (const GLint*)&Pica::g_state.vs.uniforms.i[uniform_index]);
-    else
-        LOG_WARNING(Render_OpenGL, "Attempted to write to int uniform not used in shader");
+    //else
+    //    LOG_WARNING(Render_OpenGL, "Attempted to write to int uniform not used in shader");
 }
 
 void RasterizerOpenGL::SyncFloatUniform(u32 uniform_index) {
@@ -769,8 +769,8 @@ void RasterizerOpenGL::SyncFloatUniform(u32 uniform_index) {
                                   float24_values.w.ToFloat32() };
     if (uniform_c[uniform_index] != -1)
         glUniform4fv(uniform_c[uniform_index], 1, gl_float_values);
-    else
-        LOG_WARNING(Render_OpenGL, "Attempted to write to float uniform not used in shader");
+    //else
+    //    LOG_WARNING(Render_OpenGL, "Attempted to write to float uniform not used in shader");
 }
 
 void RasterizerOpenGL::SyncFirstInMap() {

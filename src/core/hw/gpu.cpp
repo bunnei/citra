@@ -306,6 +306,8 @@ template void Write<u8>(u32 addr, const u8 data);
 
 /// Update hardware
 static void VBlankCallback(u64 userdata, int cycles_late) {
+    VideoCore::WaitForRender_Done();
+
     frame_count++;
     last_skip_frame = g_skip_frame;
     g_skip_frame = (frame_count & Settings::values.frame_skip) != 0;

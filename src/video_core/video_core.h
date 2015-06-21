@@ -47,4 +47,9 @@ void Init(EmuWindow* emu_window);
 /// Shutdown the video core
 void Shutdown();
 
+void WaitForRender_Done();
+void StartRender();
+void RenderLoop();
+void WriteGPURegister(u32 id, u32 data);
+
 } // namespace

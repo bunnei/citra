@@ -64,6 +64,8 @@ RendererOpenGL::~RendererOpenGL() {
 
 /// Swap buffers (render frame)
 void RendererOpenGL::SwapBuffers() {
+    VideoCore::g_emu_window->MakeCurrent();
+
     // Maintain the rasterizer's state as a priority
     OpenGLState prev_state = OpenGLState::GetCurState();
     state.Apply();
@@ -149,6 +151,8 @@ void RendererOpenGL::SwapBuffers() {
 
         hw_rasterizer->Reset();
     }
+
+    VideoCore::g_emu_window->DoneCurrent();
 }
 
 /**

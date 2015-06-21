@@ -16,6 +16,8 @@
 #include "core/hle/kernel/thread.h"
 #include "core/hw/hw.h"
 
+#include "video_core/video_core.h"
+
 namespace Core {
 
 ARM_Interface*     g_app_core = nullptr;  ///< ARM11 application core
@@ -36,6 +38,7 @@ void RunLoop(int tight_loop) {
 
     HW::Update();
     if (HLE::g_reschedule) {
+        VideoCore::WaitForRender_Done();
         Kernel::Reschedule();
     }
 }

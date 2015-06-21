@@ -2,6 +2,8 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <mutex>
+
 #include "common/bit_field.h"
 
 #include "core/mem_map.h"
@@ -92,7 +94,7 @@ static void WriteHWRegs(u32 base_address, u32 size_in_bytes, const u32* data) {
         return;
 
     while (size_in_bytes > 0) {
-        HW::Write<u32>(base_address + REGS_BEGIN, *data);
+        VideoCore::WriteGPURegister(base_address + REGS_BEGIN, *data);
 
         size_in_bytes -= 4;
         ++data;
@@ -111,6 +113,8 @@ static void WriteHWRegs(u32 base_address, u32 size_in_bytes, const u32* data) {
  *      4 : pointer to source data array
  */
 static void WriteHWRegs(Service::Interface* self) {
+    VideoCore::WaitForRender_Done();
+
     u32* cmd_buff = Kernel::GetCommandBuffer();
     u32 reg_addr = cmd_buff[1];
     u32 size = cmd_buff[2];
@@ -143,7 +147,7 @@ static void WriteHWRegsWithMask(u32 base_address, u32 size_in_bytes, const u32* 
         // Update the current value of the register only for set mask bits
         reg_value = (reg_value & ~*masks) | (*data | *masks);
 
-        HW::Write<u32>(reg_address, reg_value);
+        VideoCore::WriteGPURegister(reg_address, reg_value);
 
         size_in_bytes -= 4;
         ++data;
@@ -164,6 +168,8 @@ static void WriteHWRegsWithMask(u32 base_address, u32 size_in_bytes, const u32* 
  *      6 : pointer to mask array
  */
 static void WriteHWRegsWithMask(Service::Interface* self) {
+    VideoCore::WaitForRender_Done();
+
     u32* cmd_buff = Kernel::GetCommandBuffer();
     u32 reg_addr = cmd_buff[1];
     u32 size = cmd_buff[2];
@@ -176,6 +182,8 @@ static void WriteHWRegsWithMask(Service::Interface* self) {
 
 /// Read a GSP GPU hardware register
 static void ReadHWRegs(Service::Interface* self) {
+    VideoCore::WaitForRender_Done();
+
     u32* cmd_buff = Kernel::GetCommandBuffer();
     u32 reg_addr = cmd_buff[1];
     u32 size = cmd_buff[2];
@@ -238,6 +246,8 @@ static void SetBufferSwap(u32 screen_id, const FrameBufferInfo& info) {
  *      1: Result code
  */
 static void SetBufferSwap(Service::Interface* self) {
+    VideoCore::WaitForRender_Done();
+
     u32* cmd_buff = Kernel::GetCommandBuffer();
     u32 screen_id = cmd_buff[1];
     FrameBufferInfo* fb_info = (FrameBufferInfo*)&cmd_buff[2];
@@ -260,6 +270,8 @@ static void SetBufferSwap(Service::Interface* self) {
  *      1 : Result of function, 0 on success, otherwise error code
  */
 static void FlushDataCache(Service::Interface* self) {
+    VideoCore::WaitForRender_Done();
+
     u32* cmd_buff = Kernel::GetCommandBuffer();
     u32 address = cmd_buff[1];
     u32 size    = cmd_buff[2];
@@ -271,8 +283,8 @@ static void FlushDataCache(Service::Interface* self) {
 
     cmd_buff[1] = RESULT_SUCCESS.raw; // No error
 
-    LOG_DEBUG(Service_GSP, "(STUBBED) called address=0x%08X, size=0x%08X, process=0x%08X",
-              address, size, process);
+    //LOG_DEBUG(Service_GSP, "(STUBBED) called address=0x%08X, size=0x%08X, process=0x%08X",
+    //          address, size, process);
 }
 
 /**
@@ -286,6 +298,8 @@ static void FlushDataCache(Service::Interface* self) {
  *      4 : Handle to GSP shared memory
  */
 static void RegisterInterruptRelayQueue(Service::Interface* self) {
+    VideoCore::WaitForRender_Done();
+
     u32* cmd_buff = Kernel::GetCommandBuffer();
     u32 flags = cmd_buff[1];
 
@@ -309,7 +323,9 @@ static void RegisterInterruptRelayQueue(Service::Interface* self) {
  * @todo This should probably take a thread_id parameter and only signal this thread?
  * @todo This probably does not belong in the GSP module, instead move to video_core
  */
+static std::mutex signal_interrupt_mutex;
 void SignalInterrupt(InterruptId interrupt_id) {
+    std::lock_guard<std::mutex> lock(signal_interrupt_mutex);
     if (0 == g_interrupt_event) {
         LOG_WARNING(Service_GSP, "cannot synchronize until GSP event has been created!");
         return;
@@ -345,10 +361,10 @@ void SignalInterrupt(InterruptId interrupt_id) {
 }
 
 /// Executes the next GSP command
-static void ExecuteCommand(const Command& command, u32 thread_id) {
+void ExecuteCommand(const Command& command, u32 thread_id) {
     // Utility function to convert register ID to address
     auto WriteGPURegister = [](u32 id, u32 data) {
-        GPU::Write<u32>(0x1EF00000 + 4 * id, data);
+        VideoCore::WriteGPURegister(0x1EF00000 + 4 * id, data);
     };
 
     switch (command.id) {
@@ -459,6 +475,8 @@ static void ExecuteCommand(const Command& command, u32 thread_id) {
  *      1: Result code
  */
 static void SetLcdForceBlack(Service::Interface* self) {
+    VideoCore::WaitForRender_Done();
+
     u32* cmd_buff = Kernel::GetCommandBuffer();
 
     bool enable_black = cmd_buff[1] != 0;
@@ -515,6 +533,8 @@ static void TriggerCmdReqQueue(Service::Interface* self) {
  *      9: Bottom screen framebuffer width
  */
 static void ImportDisplayCaptureInfo(Service::Interface* self) {
+    VideoCore::WaitForRender_Done();
+
     u32* cmd_buff = Kernel::GetCommandBuffer();
 
     // TODO(Subv): We're always returning the framebuffer structures for thread_id = 0,

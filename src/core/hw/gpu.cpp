@@ -32,7 +32,7 @@ Regs g_regs;
 bool g_skip_frame;
 /// 268MHz CPU clocks / 60Hz frames per second
 const u64 frame_ticks = 268123480ull / 60;
-/// Event id for CoreTiming
+/// Event id for CoreTiming to schedule a VBlank
 static int vblank_event;
 /// Total number of frames drawn
 static u64 frame_count;
@@ -73,10 +73,10 @@ inline void Write(u32 addr, const T data) {
     case GPU_REG_INDEX_WORKAROUND(memory_fill_config[1].trigger, 0x00008 + 0x3):
     {
         if (index == GPU_REG_INDEX(memory_fill_config[0].trigger)) {
-            GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PSC0);
+            GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PSC0);
         }
         else {
-            GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PSC1);
+            GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PSC1);
         }
         break;
 
@@ -110,9 +110,9 @@ inline void Write(u32 addr, const T data) {
             config.finished = 1;
 
             if (!is_second_filler) {
-                GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PSC0);
+                GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PSC0);
             } else {
-                GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PSC1);
+                GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PSC1);
             }
 
             VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetStartAddress(), config.GetEndAddress() - config.GetStartAddress());
@@ -123,7 +123,7 @@ inline void Write(u32 addr, const T data) {
     case GPU_REG_INDEX(display_transfer_config.trigger):
     {
         VideoCore::g_renderer->hw_rasterizer->SetCopyMap(g_regs.display_transfer_config.GetPhysicalInputAddress(), g_regs.display_transfer_config.GetPhysicalOutputAddress());
-        GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PPF);
+        GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PPF);
         break;
 
         const auto& config = g_regs.display_transfer_config;
@@ -161,7 +161,7 @@ inline void Write(u32 addr, const T data) {
                     config.GetPhysicalOutputAddress(), config.output_width.Value(), config.output_height.Value(),
                     config.output_format.Value(), config.flags);
 
-                GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PPF);
+                GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PPF);
 
                 VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetPhysicalOutputAddress(), output_size);
                 break;
@@ -268,7 +268,7 @@ inline void Write(u32 addr, const T data) {
                       config.GetPhysicalOutputAddress(), output_width, output_height,
                       config.output_format.Value(), config.flags);
 
-            GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PPF);
+            GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PPF);
 
             VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetPhysicalOutputAddress(), output_size);
         }

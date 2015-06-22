@@ -42,7 +42,7 @@ std::atomic<bool> g_high_res_enabled;
 static Common::Event render_start_event;
 static Common::Event render_done_event;
 
-static std::mutex write_mutex, run_mutex;
+static std::recursive_mutex write_mutex, run_mutex;
 static std::atomic<bool> running = false;
 
 static std::vector<std::pair<u32, u32>> write_queue;
@@ -53,12 +53,12 @@ static void ThreadSyncCallback(u64 userdata, int cycles_late) {
 }
 
 bool IsEmpty() {
-    std::lock_guard<std::mutex> lock(write_mutex);
+    std::lock_guard<std::recursive_mutex> lock(write_mutex);
     return write_queue.empty();
 }
 
 void WriteGPURegister(u32 id, u32 data) {
-    std::lock_guard<std::mutex> lock(write_mutex);
+    std::lock_guard<std::recursive_mutex> lock(write_mutex);
     write_queue.insert(write_queue.begin(), { id, data });
 }
 
@@ -72,7 +72,7 @@ void WriteGPURegister(u32 id, u32 data) {
 // Call from Core thread
 void WaitForRender_Done() {
     if (running) {
-        std::lock_guard<std::mutex> lock(run_mutex);
+        std::lock_guard<std::recursive_mutex> lock(run_mutex);
     }
 }
 
@@ -82,18 +82,17 @@ void RenderLoop() {
     std::pair<u32, u32> next_write;
     while (true) {
 
-        if (!IsEmpty())
-        {
-            std::lock_guard<std::mutex> lock(run_mutex);
+        if (!IsEmpty()) {
+            std::lock_guard<std::recursive_mutex> lock(run_mutex);
 
-            // Pause CPU thread after so many ticks for the GPU to catch up (4096 is totally arbitrary)
-            CoreTiming::ScheduleEvent(4096, thread_sync_event, 0);
+            // Pause CPU thread after so many ticks for the GPU to catch up
+            CoreTiming::ScheduleEvent_Threadsafe((268123480ull / 60) / 240, thread_sync_event, 0);
             
             running = true;
             g_emu_window->MakeCurrent();
 
             do {
-                std::lock_guard<std::mutex> lock(write_mutex);
+                std::lock_guard<std::recursive_mutex> lock(write_mutex);
 
                 next_write = write_queue.back();
                 write_queue.pop_back();
@@ -102,7 +101,7 @@ void RenderLoop() {
 
             } while (!IsEmpty());
 
-            CoreTiming::UnscheduleEvent(thread_sync_event, 0);
+            CoreTiming::UnscheduleThreadsafeEvent(thread_sync_event, 0);
 
             g_emu_window->DoneCurrent();
             running = false;

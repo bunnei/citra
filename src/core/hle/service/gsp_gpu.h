@@ -170,4 +170,10 @@ public:
  */
 void SignalInterrupt(InterruptId interrupt_id);
 
+/**
+ * Signals that the specified interrupt type has occurred to userland code from the core thread
+ * @param interrupt_id ID of interrupt that is being signalled
+ */
+void SignalInterrupt_ThreadSafe(InterruptId interrupt_id);
+
 } // namespace

@@ -15,6 +15,7 @@
 #include "core/hw/hw.h"
 #include "core/hw/gpu.h"
 #include "core/hw/lcd.h"
+#include "core/core_timing.h"
 
 #include "video_core/gpu_debugger.h"
 #include "video_core/video_core.h"
@@ -36,6 +37,13 @@ Kernel::SharedPtr<Kernel::Event> g_interrupt_event;
 Kernel::SharedPtr<Kernel::SharedMemory> g_shared_memory;
 /// Thread index into interrupt relay queue
 u32 g_thread_id = 0;
+/// Event id for CoreTiming to schedule an interrupt signal
+static int signal_interrupt_event;
+
+/// Callback to signal a GSP interrupt from the main thread
+static void SignalInterruptCallback(u64 interrupt, int cycles_late) {
+    SignalInterrupt(static_cast<GSP_GPU::InterruptId>(interrupt));
+}
 
 /// Gets a pointer to a thread command buffer in GSP shared memory
 static inline u8* GetCommandBuffer(u32 thread_id) {
@@ -113,8 +121,6 @@ static void WriteHWRegs(u32 base_address, u32 size_in_bytes, const u32* data) {
  *      4 : pointer to source data array
  */
 static void WriteHWRegs(Service::Interface* self) {
-    VideoCore::WaitForRender_Done();
-
     u32* cmd_buff = Kernel::GetCommandBuffer();
     u32 reg_addr = cmd_buff[1];
     u32 size = cmd_buff[2];
@@ -168,8 +174,6 @@ static void WriteHWRegsWithMask(u32 base_address, u32 size_in_bytes, const u32* 
  *      6 : pointer to mask array
  */
 static void WriteHWRegsWithMask(Service::Interface* self) {
-    VideoCore::WaitForRender_Done();
-
     u32* cmd_buff = Kernel::GetCommandBuffer();
     u32 reg_addr = cmd_buff[1];
     u32 size = cmd_buff[2];
@@ -323,9 +327,7 @@ static void RegisterInterruptRelayQueue(Service::Interface* self) {
  * @todo This should probably take a thread_id parameter and only signal this thread?
  * @todo This probably does not belong in the GSP module, instead move to video_core
  */
-static std::mutex signal_interrupt_mutex;
 void SignalInterrupt(InterruptId interrupt_id) {
-    std::lock_guard<std::mutex> lock(signal_interrupt_mutex);
     if (0 == g_interrupt_event) {
         LOG_WARNING(Service_GSP, "cannot synchronize until GSP event has been created!");
         return;
@@ -358,6 +360,10 @@ void SignalInterrupt(InterruptId interrupt_id) {
         }
     }
     g_interrupt_event->Signal();
+}
+
+void SignalInterrupt_ThreadSafe(InterruptId interrupt_id) {
+    CoreTiming::ScheduleEvent_Threadsafe_Immediate(signal_interrupt_event, static_cast<u64>(interrupt_id));
 }
 
 /// Executes the next GSP command
@@ -607,6 +613,8 @@ Interface::Interface() {
     using Kernel::MemoryPermission;
     g_shared_memory = Kernel::SharedMemory::Create(0x1000, MemoryPermission::ReadWrite,
             MemoryPermission::ReadWrite, "GSPSharedMem");
+
+    signal_interrupt_event = CoreTiming::RegisterEvent("GPU:SignalInterruptCallback", SignalInterruptCallback);
 
     g_thread_id = 0;
 }

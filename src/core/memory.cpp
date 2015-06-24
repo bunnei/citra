@@ -16,6 +16,8 @@
 #include "core/memory.h"
 #include "core/memory_setup.h"
 
+#include "video_core/video_core.h"
+
 namespace Memory {
 
 enum class PageType {
@@ -25,6 +27,8 @@ enum class PageType {
     Memory,
     /// Page is mapped to a I/O region. Writing and reading to this page is handled by functions.
     Special,
+    /// Page is mapped to regular memory flagged as a texture.
+    MemoryTexture,
 };
 
 /**
@@ -120,6 +124,9 @@ T Read(const VAddr vaddr) {
 
 template <typename T>
 void Write(const VAddr vaddr, const T data) {
+    if (current_page_table->attributes[vaddr >> PAGE_BITS] == PageType::MemoryTexture)
+        VideoCore::g_renderer->hw_rasterizer->NotifyFlush(Memory::VirtualToPhysicalAddress(vaddr), 1);
+
     u8* page_pointer = current_page_table->pointers[vaddr >> PAGE_BITS];
     if (page_pointer) {
         *reinterpret_cast<T*>(page_pointer + (vaddr & PAGE_MASK)) = data;
@@ -138,6 +145,20 @@ void Write(const VAddr vaddr, const T data) {
         return;
     default:
         UNREACHABLE();
+    }
+}
+
+void SetTextureMem(PAddr addr, u32 size) {
+    VAddr vaddr = PhysicalToVirtualAddress(addr);
+    for (VAddr i = vaddr; i < vaddr + size; i += PAGE_SIZE) {
+        current_page_table->attributes[i >> PAGE_BITS] = PageType::MemoryTexture;
+    }
+}
+
+void UnSetTextureMem(PAddr addr, u32 size) {
+    VAddr vaddr = PhysicalToVirtualAddress(addr);
+    for (VAddr i = vaddr; i < vaddr + size; i += PAGE_SIZE) {
+        current_page_table->attributes[i >> PAGE_BITS] = PageType::Memory;
     }
 }
 

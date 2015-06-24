@@ -8,6 +8,7 @@
 
 #include "common/logging/log.h"
 #include "video_core/debug_utils/debug_utils.h"
+#include "video_core/renderer_opengl/gl_rasterizer.h"
 
 namespace Pica {
 
@@ -56,6 +57,8 @@ void PrimitiveAssembler<VertexType>::SubmitVertex(VertexType& vtx, TriangleHandl
 // explicitly instantiate use cases
 template
 struct PrimitiveAssembler<VertexShader::OutputVertex>;
+template
+struct PrimitiveAssembler<RawVertex>;
 template
 struct PrimitiveAssembler<DebugUtils::GeometryDumper::Vertex>;
 

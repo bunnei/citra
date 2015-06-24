@@ -125,6 +125,14 @@ void RendererOpenGL::SwapBuffers() {
             hw_rasterizer->Reset();
         }
     }
+
+    bool hw_vertex_shaders_enabled = VideoCore::g_hw_vertex_shaders_enabled;
+    if (Settings::values.use_hw_vertex_shaders != hw_vertex_shaders_enabled) {
+        // TODO: Save new setting value to config file for next startup
+        Settings::values.use_hw_vertex_shaders = hw_vertex_shaders_enabled;
+
+        hw_rasterizer->Reset();
+    }
 }
 
 /**

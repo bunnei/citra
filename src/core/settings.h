@@ -45,6 +45,7 @@ struct Values {
 
     // Renderer
     bool use_hw_renderer;
+    bool use_hw_vertex_shaders;
 
     float bg_red;
     float bg_green;

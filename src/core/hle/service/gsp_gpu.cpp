@@ -274,7 +274,7 @@ static void FlushDataCache(Service::Interface* self) {
     u32 size    = cmd_buff[2];
     u32 process = cmd_buff[4];
 
-    GPU::NotifyFlush(Memory::VirtualToPhysicalAddress(address), size);
+    //GPU::NotifyFlush(Memory::VirtualToPhysicalAddress(address), size);
 
     // TODO(purpasmart96): Verify return header on HW
 

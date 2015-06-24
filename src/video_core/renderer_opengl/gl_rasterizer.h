@@ -26,11 +26,17 @@ public:
                      const Pica::VertexShader::OutputVertex& v1,
                      const Pica::VertexShader::OutputVertex& v2) override;
 
+    void AddTriangleRaw(const RawVertex& v0,
+                        const RawVertex& v1,
+                        const RawVertex& v2) override;
+
     /// Draw the current batch of triangles
     void DrawTriangles() override;
 
     /// Commit the rasterizer's framebuffer contents immediately to the current 3DS memory framebuffer
     void CommitFramebuffer() override;
+
+    void SyncFloatUniform(u32 uniform_index) override;
 
     /// Notify rasterizer that the specified PICA register has been changed
     void NotifyPicaRegisterChanged(u32 id) override;
@@ -101,6 +107,8 @@ private:
         GLfloat tex_coord2[2];
     };
 
+    void LocateUniforms(GLuint shader_handle);
+
     /// Reconfigure the OpenGL color texture to use the given format and dimensions
     void ReconfigureColorTexture(TextureInfo& texture, Pica::Regs::ColorFormat format, u32 width, u32 height);
 
@@ -109,6 +117,20 @@ private:
 
     /// Syncs the state and contents of the OpenGL framebuffer to match the current PICA framebuffer
     void SyncFramebuffer();
+
+    void SyncShaderUniforms();
+
+    void SyncShader(bool force_reload);
+
+    void SyncBoolUniforms();
+
+    void SyncIntUniform(u32 uniform_index);
+
+    void SyncFirstInMap();
+
+    void SyncSecondInMap();
+
+    void SyncOutMap(u32 map_index);
 
     /// Syncs the cull mode to match the PICA register
     void SyncCullMode();
@@ -181,6 +203,7 @@ private:
     RasterizerCacheOpenGL res_cache;
 
     std::vector<HardwareVertex> vertex_batch;
+    std::vector<RawVertex> raw_vertex_batch;
 
     OpenGLState state;
 
@@ -200,6 +223,8 @@ private:
     GLuint attrib_color;
     GLuint attrib_texcoords;
 
+    GLuint attrib_v;
+
     // Hardware fragment shader
     GLuint uniform_alphatest_enabled;
     GLuint uniform_alphatest_func;
@@ -207,4 +232,11 @@ private:
     GLuint uniform_tex;
     GLuint uniform_tev_combiner_buffer_color;
     TEVConfigUniforms uniform_tev_cfgs[6];
+
+    GLuint uniform_num_attrs;
+    GLuint uniform_attr_map;
+    GLuint uniform_out_map;
+    GLuint uniform_c[96];
+    GLuint uniform_b[16];
+    GLuint uniform_i[4];
 };

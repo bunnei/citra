@@ -70,6 +70,7 @@ private slots:
     void OnConfigure();
     void OnDisplayTitleBars(bool);
     void SetHardwareRendererEnabled(bool);
+    void SetHardwareVertexShadersEnabled(bool);
     void ToggleWindowMode();
 
 private:

@@ -119,95 +119,175 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
 
             DebugUtils::GeometryDumper geometry_dumper;
             PrimitiveAssembler<VertexShader::OutputVertex> primitive_assembler(regs.triangle_topology.Value());
+            PrimitiveAssembler<RawVertex> raw_primitive_assembler(regs.triangle_topology.Value());
             PrimitiveAssembler<DebugUtils::GeometryDumper::Vertex> dumping_primitive_assembler(regs.triangle_topology.Value());
 
-            for (unsigned int index = 0; index < regs.num_vertices; ++index)
-            {
-                unsigned int vertex = is_indexed ? (index_u16 ? index_address_16[index] : index_address_8[index]) : index;
+            if (!Settings::values.use_hw_renderer || !Settings::values.use_hw_vertex_shaders) {
+                for (unsigned int index = 0; index < regs.num_vertices; ++index)
+                {
+                    unsigned int vertex = is_indexed ? (index_u16 ? index_address_16[index] : index_address_8[index]) : index;
 
-                if (is_indexed) {
-                    // TODO: Implement some sort of vertex cache!
-                }
-
-                // Initialize data for the current vertex
-                VertexShader::InputVertex input;
-
-                // Load a debugging token to check whether this gets loaded by the running
-                // application or not.
-                static const float24 debug_token = float24::FromRawFloat24(0x00abcdef);
-                input.attr[0].w = debug_token;
-
-                for (int i = 0; i < attribute_config.GetNumTotalAttributes(); ++i) {
-                    // Load the default attribute if we're configured to do so, this data will be overwritten by the loader data if it's set
-                    if (attribute_config.IsDefaultAttribute(i)) {
-                        input.attr[i] = g_state.vs.default_attributes[i];
-                        LOG_TRACE(HW_GPU, "Loaded default attribute %x for vertex %x (index %x): (%f, %f, %f, %f)",
-                                  i, vertex, index,
-                                  input.attr[i][0].ToFloat32(), input.attr[i][1].ToFloat32(),
-                                  input.attr[i][2].ToFloat32(), input.attr[i][3].ToFloat32());
+                    if (is_indexed) {
+                        // TODO: Implement some sort of vertex cache!
                     }
 
-                    // Load per-vertex data from the loader arrays
-                    for (unsigned int comp = 0; comp < vertex_attribute_elements[i]; ++comp) {
-                        const u8* srcdata = Memory::GetPhysicalPointer(vertex_attribute_sources[i] + vertex_attribute_strides[i] * vertex + comp * vertex_attribute_element_size[i]);
+                    // Initialize data for the current vertex
+                    VertexShader::InputVertex input;
 
-                        const float srcval = (vertex_attribute_formats[i] == Regs::VertexAttributeFormat::BYTE) ? *(s8*)srcdata :
-                            (vertex_attribute_formats[i] == Regs::VertexAttributeFormat::UBYTE) ? *(u8*)srcdata :
-                            (vertex_attribute_formats[i] == Regs::VertexAttributeFormat::SHORT) ? *(s16*)srcdata :
-                            *(float*)srcdata;
+                    // Load a debugging token to check whether this gets loaded by the running
+                    // application or not.
+                    static const float24 debug_token = float24::FromRawFloat24(0x00abcdef);
+                    input.attr[0].w = debug_token;
 
-                        input.attr[i][comp] = float24::FromFloat32(srcval);
-                        LOG_TRACE(HW_GPU, "Loaded component %x of attribute %x for vertex %x (index %x) from 0x%08x + 0x%08lx + 0x%04lx: %f",
-                            comp, i, vertex, index,
-                            attribute_config.GetPhysicalBaseAddress(),
-                            vertex_attribute_sources[i] - base_address,
-                            vertex_attribute_strides[i] * vertex + comp * vertex_attribute_element_size[i],
-                            input.attr[i][comp].ToFloat32());
+                    for (int i = 0; i < attribute_config.GetNumTotalAttributes(); ++i) {
+                        // Load the default attribute if we're configured to do so, this data will be overwritten by the loader data if it's set
+                        if (attribute_config.IsDefaultAttribute(i)) {
+                            input.attr[i] = g_state.vs.default_attributes[i];
+                            LOG_TRACE(HW_GPU, "Loaded default attribute %x for vertex %x (index %x): (%f, %f, %f, %f)",
+                                      i, vertex, index,
+                                      input.attr[i][0].ToFloat32(), input.attr[i][1].ToFloat32(),
+                                      input.attr[i][2].ToFloat32(), input.attr[i][3].ToFloat32());
+                        }
+
+                        // Load per-vertex data from the loader arrays
+                        for (unsigned int comp = 0; comp < vertex_attribute_elements[i]; ++comp) {
+                            const u8* srcdata = Memory::GetPhysicalPointer(vertex_attribute_sources[i] + vertex_attribute_strides[i] * vertex + comp * vertex_attribute_element_size[i]);
+
+                            const float srcval = (vertex_attribute_formats[i] == Regs::VertexAttributeFormat::BYTE) ? *(s8*)srcdata :
+                                (vertex_attribute_formats[i] == Regs::VertexAttributeFormat::UBYTE) ? *(u8*)srcdata :
+                                (vertex_attribute_formats[i] == Regs::VertexAttributeFormat::SHORT) ? *(s16*)srcdata :
+                                *(float*)srcdata;
+
+                            input.attr[i][comp] = float24::FromFloat32(srcval);
+                            LOG_TRACE(HW_GPU, "Loaded component %x of attribute %x for vertex %x (index %x) from 0x%08x + 0x%08lx + 0x%04lx: %f",
+                                comp, i, vertex, index,
+                                attribute_config.GetPhysicalBaseAddress(),
+                                vertex_attribute_sources[i] - base_address,
+                                vertex_attribute_strides[i] * vertex + comp * vertex_attribute_element_size[i],
+                                input.attr[i][comp].ToFloat32());
+                        }
                     }
-                }
 
-                // HACK: Some games do not initialize the vertex position's w component. This leads
-                //       to critical issues since it messes up perspective division. As a
-                //       workaround, we force the fourth component to 1.0 if we find this to be the
-                //       case.
-                //       To do this, we additionally have to assume that the first input attribute
-                //       is the vertex position, since there's no information about this other than
-                //       the empiric observation that this is usually the case.
-                if (input.attr[0].w == debug_token)
-                    input.attr[0].w = float24::FromFloat32(1.0);
+                    // HACK: Some games do not initialize the vertex position's w component. This leads
+                    //       to critical issues since it messes up perspective division. As a
+                    //       workaround, we force the fourth component to 1.0 if we find this to be the
+                    //       case.
+                    //       To do this, we additionally have to assume that the first input attribute
+                    //       is the vertex position, since there's no information about this other than
+                    //       the empiric observation that this is usually the case.
+                    if (input.attr[0].w == debug_token)
+                        input.attr[0].w = float24::FromFloat32(1.0);
 
-                if (g_debug_context)
-                    g_debug_context->OnEvent(DebugContext::Event::VertexLoaded, (void*)&input);
+                    if (g_debug_context)
+                        g_debug_context->OnEvent(DebugContext::Event::VertexLoaded, (void*)&input);
 
-                // NOTE: When dumping geometry, we simply assume that the first input attribute
-                //       corresponds to the position for now.
-                DebugUtils::GeometryDumper::Vertex dumped_vertex = {
-                    input.attr[0][0].ToFloat32(), input.attr[0][1].ToFloat32(), input.attr[0][2].ToFloat32()
-                };
-                using namespace std::placeholders;
-                dumping_primitive_assembler.SubmitVertex(dumped_vertex,
-                                                         std::bind(&DebugUtils::GeometryDumper::AddTriangle,
-                                                                   &geometry_dumper, _1, _2, _3));
-
-                // Send to vertex shader
-                VertexShader::OutputVertex output = VertexShader::RunShader(input, attribute_config.GetNumTotalAttributes());
-
-                if (is_indexed) {
-                    // TODO: Add processed vertex to vertex cache!
-                }
-
-                if (Settings::values.use_hw_renderer) {
-                    // Send to hardware renderer
-                    static auto AddHWTriangle = [](const Pica::VertexShader::OutputVertex& v0,
-                                                   const Pica::VertexShader::OutputVertex& v1,
-                                                   const Pica::VertexShader::OutputVertex& v2) {
-                        VideoCore::g_renderer->hw_rasterizer->AddTriangle(v0, v1, v2);
+                    // NOTE: When dumping geometry, we simply assume that the first input attribute
+                    //       corresponds to the position for now.
+                    DebugUtils::GeometryDumper::Vertex dumped_vertex = {
+                        input.attr[0][0].ToFloat32(), input.attr[0][1].ToFloat32(), input.attr[0][2].ToFloat32()
                     };
+                    using namespace std::placeholders;
+                    dumping_primitive_assembler.SubmitVertex(dumped_vertex,
+                                                             std::bind(&DebugUtils::GeometryDumper::AddTriangle,
+                                                                       &geometry_dumper, _1, _2, _3));
 
-                    primitive_assembler.SubmitVertex(output, AddHWTriangle);
-                } else {
-                    // Send to triangle clipper
-                    primitive_assembler.SubmitVertex(output, Clipper::ProcessTriangle);
+                    // Send to vertex shader
+                    VertexShader::OutputVertex output = VertexShader::RunShader(input, attribute_config.GetNumTotalAttributes());
+
+                    if (is_indexed) {
+                        // TODO: Add processed vertex to vertex cache!
+                    }
+
+                    if (Settings::values.use_hw_renderer) {
+                        // Send to hardware renderer
+                        static auto AddHWTriangle = [](const Pica::VertexShader::OutputVertex& v0,
+                                                       const Pica::VertexShader::OutputVertex& v1,
+                                                       const Pica::VertexShader::OutputVertex& v2) {
+                            VideoCore::g_renderer->hw_rasterizer->AddTriangle(v0, v1, v2);
+                        };
+
+                        primitive_assembler.SubmitVertex(output, AddHWTriangle);
+                    } else {
+                        // Send to triangle clipper
+                        primitive_assembler.SubmitVertex(output, Clipper::ProcessTriangle);
+                    }
+                }
+            } else {
+                for (unsigned int index = 0; index < regs.num_vertices; ++index)
+                {
+                    unsigned int vertex = is_indexed ? (index_u16 ? index_address_16[index] : index_address_8[index]) : index;
+
+                    // Initialize data for the current vertex
+                    RawVertex raw_vertex;
+
+                    // Load a debugging token to check whether this gets loaded by the running
+                    // application or not.
+                    static const float debug_token = 123.456f;
+                    raw_vertex.attr[0][3] = debug_token;
+
+                    for (int i = 0; i < attribute_config.GetNumTotalAttributes(); ++i) {
+                        // Load the default attribute if we're configured to do so, this data will be overwritten by the loader data if it's set
+                        if (attribute_config.IsDefaultAttribute(i)) {
+                            const auto& default_value = g_state.vs.default_attributes[i];
+                            for (unsigned int comp = 0; comp < 4; ++comp) {
+                                raw_vertex.attr[i][comp] = default_value[comp].ToFloat32();
+                            }
+                            LOG_TRACE(HW_GPU, "Loaded default attribute %x for vertex %x (index %x): (%f, %f, %f, %f)",
+                                      i, vertex, index,
+                                      raw_vertex.attr[i][comp], raw_vertex.attr[i][comp],
+                                      raw_vertex.attr[i][comp], raw_vertex.attr[i][comp]);
+                        }
+
+                        // Load per-vertex data from the loader arrays
+                        for (unsigned int comp = 0; comp < vertex_attribute_elements[i]; ++comp) {
+                            const u8* srcdata = Memory::GetPhysicalPointer(vertex_attribute_sources[i] + vertex_attribute_strides[i] * vertex + comp * vertex_attribute_element_size[i]);
+
+                            const float srcval = (vertex_attribute_formats[i] == Regs::VertexAttributeFormat::BYTE) ? *(s8*)srcdata :
+                                (vertex_attribute_formats[i] == Regs::VertexAttributeFormat::UBYTE) ? *(u8*)srcdata :
+                                (vertex_attribute_formats[i] == Regs::VertexAttributeFormat::SHORT) ? *(s16*)srcdata :
+                                *(float*)srcdata;
+
+                            raw_vertex.attr[i][comp] = srcval;
+                            LOG_TRACE(HW_GPU, "Loaded component %x of attribute %x for vertex %x (index %x) from 0x%08x + 0x%08lx + 0x%04lx: %f",
+                                comp, i, vertex, index,
+                                attribute_config.GetPhysicalBaseAddress(),
+                                vertex_attribute_sources[i] - base_address,
+                                vertex_attribute_strides[i] * vertex + comp * vertex_attribute_element_size[i],
+                                raw_vertex.attr[i][comp]);
+                        }
+                    }
+
+                    // HACK: Some games do not initialize the vertex position's w component. This leads
+                    //       to critical issues since it messes up perspective division. As a
+                    //       workaround, we force the fourth component to 1.0 if we find this to be the
+                    //       case.
+                    //       To do this, we additionally have to assume that the first input attribute
+                    //       is the vertex position, since there's no information about this other than
+                    //       the empiric observation that this is usually the case.
+                    if (raw_vertex.attr[0][3] == debug_token)
+                        raw_vertex.attr[0][3] = 1.0f;
+
+                    //if (g_debug_context)
+                    //    g_debug_context->OnEvent(DebugContext::Event::VertexLoaded, (void*)&input);
+
+                    // NOTE: When dumping geometry, we simply assume that the first input attribute
+                    //       corresponds to the position for now.
+                    //DebugUtils::GeometryDumper::Vertex dumped_vertex = {
+                    //    input.attr[0][0].ToFloat32(), input.attr[0][1].ToFloat32(), input.attr[0][2].ToFloat32()
+                    //};
+                    //using namespace std::placeholders;
+                    //dumping_primitive_assembler.SubmitVertex(dumped_vertex,
+                    //                                         std::bind(&DebugUtils::GeometryDumper::AddTriangle,
+                    //                                                   &geometry_dumper, _1, _2, _3));
+
+                    // Send to hardware renderer
+                    static auto AddHWTriangleRaw = [](const RawVertex& v0,
+                                                      const RawVertex& v1,
+                                                      const RawVertex& v2) {
+                        VideoCore::g_renderer->hw_rasterizer->AddTriangleRaw(v0, v1, v2);
+                    };
+                    
+                    raw_primitive_assembler.SubmitVertex(raw_vertex, AddHWTriangleRaw);
                 }
             }
 
@@ -282,6 +362,8 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
                     uniform.y = float24::FromRawFloat24(((uniform_write_buffer[1] & 0xFFFF)<<8) | ((uniform_write_buffer[2] >> 24) & 0xFF));
                     uniform.x = float24::FromRawFloat24(uniform_write_buffer[2] & 0xFFFFFF);
                 }
+
+                VideoCore::g_renderer->hw_rasterizer->SyncFloatUniform(uniform_setup.index);
 
                 LOG_TRACE(HW_GPU, "Set uniform %x to (%f %f %f %f)", (int)uniform_setup.index,
                           uniform.x.ToFloat32(), uniform.y.ToFloat32(), uniform.z.ToFloat32(),

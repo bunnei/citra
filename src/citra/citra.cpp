@@ -37,6 +37,7 @@ int main(int argc, char **argv) {
     EmuWindow_GLFW* emu_window = new EmuWindow_GLFW;
 
     VideoCore::g_hw_renderer_enabled = Settings::values.use_hw_renderer;
+    VideoCore::g_hw_vertex_shaders_enabled = Settings::values.use_hw_vertex_shaders;
 
     System::Init(emu_window);
 

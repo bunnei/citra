@@ -46,6 +46,10 @@ frame_skip =
 # 0 (default): Software, 1: Hardware
 use_hw_renderer =
 
+# Whether to use software or hardware vertex shaders.
+# 0 (default): Software, 1: Hardware
+use_hw_vertex_shaders =
+
 # The clear color for the renderer. What shows up on the sides of the bottom screen.
 # Must be in range of 0.0-1.0. Defaults to 1.0 for all.
 bg_red =

@@ -117,6 +117,9 @@ void Write64(VAddr addr, u64 data);
 
 void WriteBlock(VAddr addr, const u8* data, size_t size);
 
+void SetTextureMem(PAddr addr, u32 size);
+void UnSetTextureMem(PAddr addr, u32 size);
+
 u8* GetPointer(VAddr virtual_address);
 
 /**

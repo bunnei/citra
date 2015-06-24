@@ -10,6 +10,7 @@
 #include "core/hle/kernel/event.h"
 #include "core/hle/service/y2r_u.h"
 #include "core/hw/y2r.h"
+#include "core/hw/gpu.h"
 #include "core/mem_map.h"
 
 #include "video_core/utils.h"
@@ -267,8 +268,7 @@ static void StartConversion(Service::Interface* self) {
     // dst_image_size would seem to be perfect for this, but it doesn't include the gap :(
     u32 total_output_size = conversion.input_lines *
         (conversion.dst.transfer_unit + conversion.dst.gap);
-    VideoCore::g_renderer->hw_rasterizer->NotifyFlush(
-        Memory::VirtualToPhysicalAddress(conversion.dst.address), total_output_size);
+    GPU::NotifyFlush(Memory::VirtualToPhysicalAddress(conversion.dst.address), total_output_size);
 
     LOG_DEBUG(Service_Y2R, "called");
     completion_event->Signal();

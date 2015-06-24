@@ -4,6 +4,7 @@
 
 #include "common/bit_field.h"
 
+#include "core/core_timing.h"
 #include "core/mem_map.h"
 #include "core/memory.h"
 #include "core/hle/kernel/event.h"
@@ -34,6 +35,14 @@ Kernel::SharedPtr<Kernel::Event> g_interrupt_event;
 Kernel::SharedPtr<Kernel::SharedMemory> g_shared_memory;
 /// Thread index into interrupt relay queue
 u32 g_thread_id = 0;
+
+/// Event id for CoreTiming to schedule an interrupt signal
+static int signal_interrupt_event;
+
+/// Callback to signal a GSP interrupt from the main thread
+static void SignalInterruptCallback(u64 interrupt, int cycles_late) {
+    SignalInterrupt(static_cast<GSP_GPU::InterruptId>(interrupt));
+}
 
 /// Gets a pointer to a thread command buffer in GSP shared memory
 static inline u8* GetCommandBuffer(u32 thread_id) {
@@ -265,7 +274,7 @@ static void FlushDataCache(Service::Interface* self) {
     u32 size    = cmd_buff[2];
     u32 process = cmd_buff[4];
 
-    VideoCore::g_renderer->hw_rasterizer->NotifyFlush(Memory::VirtualToPhysicalAddress(address), size);
+    GPU::NotifyFlush(Memory::VirtualToPhysicalAddress(address), size);
 
     // TODO(purpasmart96): Verify return header on HW
 
@@ -344,6 +353,10 @@ void SignalInterrupt(InterruptId interrupt_id) {
     g_interrupt_event->Signal();
 }
 
+void SignalInterrupt_ThreadSafe(InterruptId interrupt_id) {
+    CoreTiming::ScheduleEvent_Threadsafe_Immediate(signal_interrupt_event, static_cast<u64>(interrupt_id));
+}
+
 /// Executes the next GSP command
 static void ExecuteCommand(const Command& command, u32 thread_id) {
     // Utility function to convert register ID to address
@@ -355,7 +368,7 @@ static void ExecuteCommand(const Command& command, u32 thread_id) {
 
     // GX request DMA - typically used for copying memory from GSP heap to VRAM
     case CommandId::REQUEST_DMA:
-        VideoCore::g_renderer->hw_rasterizer->NotifyPreRead(Memory::VirtualToPhysicalAddress(command.dma_request.source_address),
+        GPU::NotifyPreRead(Memory::VirtualToPhysicalAddress(command.dma_request.source_address),
                                                             command.dma_request.size);
 
         memcpy(Memory::GetPointer(command.dma_request.dest_address),
@@ -363,7 +376,7 @@ static void ExecuteCommand(const Command& command, u32 thread_id) {
                command.dma_request.size);
         SignalInterrupt(InterruptId::DMA);
 
-        VideoCore::g_renderer->hw_rasterizer->NotifyFlush(Memory::VirtualToPhysicalAddress(command.dma_request.dest_address),
+        GPU::NotifyFlush(Memory::VirtualToPhysicalAddress(command.dma_request.dest_address),
                                                           command.dma_request.size);
         break;
 
@@ -446,6 +459,9 @@ static void ExecuteCommand(const Command& command, u32 thread_id) {
     default:
         LOG_ERROR(Service_GSP, "unknown command 0x%08X", (int)command.id.Value());
     }
+
+    if (command.flush != 0)
+        GPU::WaitForLastCommand();
 }
 
 /**
@@ -587,6 +603,9 @@ Interface::Interface() {
     using Kernel::MemoryPermission;
     g_shared_memory = Kernel::SharedMemory::Create(0x1000, MemoryPermission::ReadWrite,
             MemoryPermission::ReadWrite, "GSPSharedMem");
+
+    signal_interrupt_event = CoreTiming::RegisterEvent("GPU:SignalInterruptCallback",
+            SignalInterruptCallback);
 
     g_thread_id = 0;
 }

@@ -2,8 +2,13 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <atomic>
+#include <mutex>
+#include <thread>
+
 #include "common/color.h"
 #include "common/common_types.h"
+#include "common/thread.h"
 
 #include "core/arm/arm_interface.h"
 
@@ -30,6 +35,7 @@ Regs g_regs;
 
 /// True if the current frame was skipped
 bool g_skip_frame;
+bool g_multi_core = true;
 /// 268MHz CPU clocks / 60Hz frames per second
 const u64 frame_ticks = 268123480ull / 60;
 /// Event id for CoreTiming
@@ -70,9 +76,109 @@ inline void Write(u32 addr, const T data) {
 
     // Memory fills are triggered once the fill value is written.
     case GPU_REG_INDEX_WORKAROUND(memory_fill_config[0].trigger, 0x00004 + 0x3):
+        SendCommand(Command::MemoryFill_0);
+        break;
+
     case GPU_REG_INDEX_WORKAROUND(memory_fill_config[1].trigger, 0x00008 + 0x3):
+        SendCommand(Command::MemoryFill_1);
+        break;
+
+    case GPU_REG_INDEX(display_transfer_config.trigger):
+        SendCommand(Command::DisplayTransfer);
+        break;
+
+    // Seems like writing to this register triggers processing
+    case GPU_REG_INDEX(command_processor_config.trigger):
+        SendCommand(Command::CommandList);
+        break;
+
+    default:
+        break;
+    }
+}
+
+// Explicitly instantiate template functions because we aren't defining this in the header:
+
+template void Read<u64>(u64 &var, const u32 addr);
+template void Read<u32>(u32 &var, const u32 addr);
+template void Read<u16>(u16 &var, const u32 addr);
+template void Read<u8>(u8 &var, const u32 addr);
+
+template void Write<u64>(u32 addr, const u64 data);
+template void Write<u32>(u32 addr, const u32 data);
+template void Write<u16>(u32 addr, const u16 data);
+template void Write<u8>(u32 addr, const u8 data);
+
+u64 vblank_ticks = 0;
+u64 vblank_ticks_late = 0;
+
+/// Update hardware
+static void VBlankCallback(u64 userdata, int cycles_late) {
+    frame_count++;
+    last_skip_frame = g_skip_frame;
+    g_skip_frame = (frame_count & Settings::values.frame_skip) != 0;
+
+    // Swap buffers based on the frameskip mode, which is a little bit tricky. When
+    // a frame is being skipped, nothing is being rendered to the internal framebuffer(s).
+    // So, we should only swap frames if the last frame was rendered. The rules are:
+    //  - If frameskip == 0 (disabled), always swap buffers
+    //  - If frameskip == 1, swap buffers every other frame (starting from the first frame)
+    //  - If frameskip > 1, swap buffers every frameskip^n frames (starting from the second frame)
+    //if ((((Settings::values.frame_skip != 1) ^ last_skip_frame) && last_skip_frame != g_skip_frame) ||
+    //        Settings::values.frame_skip == 0) {
+        SendCommand(Command::SwapBuffers);
+    //}
+
+    // TODO(bunnei): Fake a DSP interrupt on each frame. This does not belong here, but
+    // until we can emulate DSP interrupts, this is probably the only reasonable place to do
+    // this. Certain games expect this to be periodically signaled.
+    DSP_DSP::SignalInterrupt();
+
+    // Check for user input updates
+    VideoCore::g_emu_window->PollEvents();
+    Service::HID::Update();
+
+    // Reschedule recurrent event
+    CoreTiming::ScheduleEvent(frame_ticks - cycles_late, vblank_event);
+
+    WaitUntilDone();
+}
+
+using mem_region = std::pair<PAddr, u32>;
+std::vector<Command> command_queue;
+std::vector<mem_region> notify_preread_queue;
+std::vector<mem_region> notify_flush_queue;
+std::mutex command_queue_lock;
+//std::recursive_mutex running_lock;
+//std::atomic<bool> command_queue_empty = true;
+Common::Event signal_thread;
+Common::Event signal_done;
+Common::Event signal_synch;
+
+
+void ExecuteCommand(Command cmd) {
+    //LOG_CRITICAL(HW_GPU, "Got command %d", cmd);
+
+    switch (cmd) {
+    case Command::SwapBuffers:
     {
-        const bool is_second_filler = (index != GPU_REG_INDEX(memory_fill_config[0].trigger));
+        VideoCore::g_renderer->SwapBuffers();
+
+        // Signal to GSP that GPU interrupt has occurred
+        // TODO(yuriks): hwtest to determine if PDC0 is for the Top screen and PDC1 for the Sub
+        // screen, or if both use the same interrupts and these two instead determine the
+        // beginning and end of the VBlank period. If needed, split the interrupt firing into
+        // two different intervals.
+        GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PDC0);
+        GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PDC1);
+
+        break;
+    }
+
+    case Command::MemoryFill_0:
+    case Command::MemoryFill_1:
+    {
+        const bool is_second_filler = (cmd == Command::MemoryFill_1);
         auto& config = g_regs.memory_fill_config[is_second_filler];
 
         if (config.address_start && config.trigger) {
@@ -86,11 +192,13 @@ inline void Write(u32 addr, const T data) {
                     ptr[1] = config.value_24bit_g;
                     ptr[2] = config.value_24bit_b;
                 }
-            } else if (config.fill_32bit) {
+            }
+            else if (config.fill_32bit) {
                 // fill with 32-bit values
                 for (u32* ptr = (u32*)start; ptr < (u32*)end; ++ptr)
                     *ptr = config.value_32bit;
-            } else {
+            }
+            else {
                 // fill with 16-bit values
                 for (u16* ptr = (u16*)start; ptr < (u16*)end; ++ptr)
                     *ptr = config.value_16bit;
@@ -102,9 +210,10 @@ inline void Write(u32 addr, const T data) {
             config.finished = 1;
 
             if (!is_second_filler) {
-                GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PSC0);
-            } else {
-                GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PSC1);
+                GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PSC0);
+            }
+            else {
+                GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PSC1);
             }
 
             VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetStartAddress(), config.GetEndAddress() - config.GetStartAddress());
@@ -112,7 +221,7 @@ inline void Write(u32 addr, const T data) {
         break;
     }
 
-    case GPU_REG_INDEX(display_transfer_config.trigger):
+    case Command::DisplayTransfer:
     {
         const auto& config = g_regs.display_transfer_config;
         if (config.trigger & 1) {
@@ -147,7 +256,7 @@ inline void Write(u32 addr, const T data) {
                     config.GetPhysicalOutputAddress(), config.output_width.Value(), config.output_height.Value(),
                     config.output_format.Value(), config.flags);
 
-                GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PPF);
+                GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PPF);
 
                 VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetPhysicalOutputAddress(), output_size);
                 break;
@@ -183,7 +292,8 @@ inline void Write(u32 addr, const T data) {
 
                         src_offset = (input_x + input_y * config.input_width) * src_bytes_per_pixel;
                         dst_offset = VideoCore::GetMortonOffset(x, y, dst_bytes_per_pixel) + coarse_y * stride;
-                    } else {
+                    }
+                    else {
                         // Interpret the input as tiled and the output as linear
                         u32 coarse_y = input_y & ~7;
                         u32 stride = config.input_width * src_bytes_per_pixel;
@@ -249,20 +359,19 @@ inline void Write(u32 addr, const T data) {
             }
 
             LOG_TRACE(HW_GPU, "DisplayTriggerTransfer: 0x%08x bytes from 0x%08x(%ux%u)-> 0x%08x(%ux%u), dst format %x, flags 0x%08X",
-                      config.output_height * output_width * GPU::Regs::BytesPerPixel(config.output_format),
-                      config.GetPhysicalInputAddress(), config.input_width.Value(), config.input_height.Value(),
-                      config.GetPhysicalOutputAddress(), output_width, output_height,
-                      config.output_format.Value(), config.flags);
+                config.output_height * output_width * GPU::Regs::BytesPerPixel(config.output_format),
+                config.GetPhysicalInputAddress(), config.input_width.Value(), config.input_height.Value(),
+                config.GetPhysicalOutputAddress(), output_width, output_height,
+                config.output_format.Value(), config.flags);
 
-            GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PPF);
+            GSP_GPU::SignalInterrupt_ThreadSafe(GSP_GPU::InterruptId::PPF);
 
             VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetPhysicalOutputAddress(), output_size);
         }
         break;
     }
 
-    // Seems like writing to this register triggers processing
-    case GPU_REG_INDEX(command_processor_config.trigger):
+    case Command::CommandList:
     {
         const auto& config = g_regs.command_processor_config;
         if (config.trigger & 1)
@@ -273,59 +382,114 @@ inline void Write(u32 addr, const T data) {
         break;
     }
 
+    case Command::NotifyPreRead:
+    {
+        mem_region region;
+        {
+            std::lock_guard<std::mutex> lock(command_queue_lock);
+            region = notify_preread_queue.back();
+            notify_preread_queue.pop_back();
+        }
+
+        VideoCore::g_renderer->hw_rasterizer->NotifyPreRead(region.first, region.second);
+        break;
+    }
+
+    case Command::NotifyFlush:
+    {
+        mem_region region;
+        {
+            std::lock_guard<std::mutex> lock(command_queue_lock);
+            region = notify_flush_queue.back();
+            notify_flush_queue.pop_back();
+        }
+
+        VideoCore::g_renderer->hw_rasterizer->NotifyFlush(region.first, region.second);
+        break;
+    }
+
     default:
+        LOG_CRITICAL(HW_GPU, "Unknown command %d", int(cmd));
         break;
     }
 }
 
-// Explicitly instantiate template functions because we aren't defining this in the header:
+void NotifyPreRead(PAddr addr, u32 size) {
+    {
+        std::lock_guard<std::mutex> lock(command_queue_lock);
+        signal_synch.Reset();
+        notify_preread_queue.insert(notify_preread_queue.begin(), mem_region(addr, size));
+        command_queue.insert(command_queue.end(), Command::NotifyPreRead);
+    }
+    signal_thread.Set();
+}
 
-template void Read<u64>(u64 &var, const u32 addr);
-template void Read<u32>(u32 &var, const u32 addr);
-template void Read<u16>(u16 &var, const u32 addr);
-template void Read<u8>(u8 &var, const u32 addr);
+void NotifyFlush(PAddr addr, u32 size) {
+    {
+        std::lock_guard<std::mutex> lock(command_queue_lock);
+        signal_synch.Reset();
+        notify_flush_queue.insert(notify_flush_queue.begin(), mem_region(addr, size));
+        command_queue.insert(command_queue.end(), Command::NotifyFlush);
+    }
+    signal_thread.Set();
+}
 
-template void Write<u64>(u32 addr, const u64 data);
-template void Write<u32>(u32 addr, const u32 data);
-template void Write<u16>(u32 addr, const u16 data);
-template void Write<u8>(u32 addr, const u8 data);
+std::atomic<bool> synch_command = false;
 
-/// Update hardware
-static void VBlankCallback(u64 userdata, int cycles_late) {
-    frame_count++;
-    last_skip_frame = g_skip_frame;
-    g_skip_frame = (frame_count & Settings::values.frame_skip) != 0;
+void SendCommand(Command cmd) {
 
-    // Swap buffers based on the frameskip mode, which is a little bit tricky. When
-    // a frame is being skipped, nothing is being rendered to the internal framebuffer(s).
-    // So, we should only swap frames if the last frame was rendered. The rules are:
-    //  - If frameskip == 0 (disabled), always swap buffers
-    //  - If frameskip == 1, swap buffers every other frame (starting from the first frame)
-    //  - If frameskip > 1, swap buffers every frameskip^n frames (starting from the second frame)
-    if ((((Settings::values.frame_skip != 1) ^ last_skip_frame) && last_skip_frame != g_skip_frame) ||
-            Settings::values.frame_skip == 0) {
-        VideoCore::g_renderer->SwapBuffers();
+    if (g_multi_core) {
+        std::lock_guard<std::mutex> lock(command_queue_lock);
+        signal_synch.Reset();
+        command_queue.insert(command_queue.end(), cmd);
+    } else {
+        ExecuteCommand(cmd);
     }
 
-    // Signal to GSP that GPU interrupt has occurred
-    // TODO(yuriks): hwtest to determine if PDC0 is for the Top screen and PDC1 for the Sub
-    // screen, or if both use the same interrupts and these two instead determine the
-    // beginning and end of the VBlank period. If needed, split the interrupt firing into
-    // two different intervals.
-    GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PDC0);
-    GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PDC1);
-
-    // TODO(bunnei): Fake a DSP interrupt on each frame. This does not belong here, but
-    // until we can emulate DSP interrupts, this is probably the only reasonable place to do
-    // this. Certain games expect this to be periodically signaled.
-    DSP_DSP::SignalInterrupt();
-
-    // Check for user input updates
-    Service::HID::Update();
-
-    // Reschedule recurrent event
-    CoreTiming::ScheduleEvent(frame_ticks - cycles_late, vblank_event);
+    signal_thread.Set();
 }
+
+void WaitUntilDone() {
+    signal_done.Wait();
+}
+
+void WaitForLastCommand() {
+    signal_synch.Wait();
+}
+
+void CommandThreadEntry() {
+    Command next_cmd;
+    bool running = false;
+
+    while (true) {
+     
+        signal_done.Set();
+        signal_thread.Wait();
+        signal_done.Reset();
+
+        if (!running) {
+            VideoCore::g_emu_window->MakeCurrent();
+            running = true;
+        }
+
+        while (true) {
+            {
+                std::lock_guard<std::mutex> lock(command_queue_lock);
+
+                if (command_queue.empty())
+                    break;
+
+                next_cmd = command_queue.back();
+                command_queue.pop_back();
+            }
+            ExecuteCommand(next_cmd);
+            signal_synch.Set();
+        }
+    }
+    VideoCore::g_emu_window->DoneCurrent();
+}
+
+std::thread command_thread(CommandThreadEntry);
 
 /// Initialize hardware
 void Init() {
@@ -363,6 +527,14 @@ void Init() {
 
     vblank_event = CoreTiming::RegisterEvent("GPU::VBlankCallback", VBlankCallback);
     CoreTiming::ScheduleEvent(frame_ticks, vblank_event);
+
+    // Threading stuff
+
+    //command_queue_empty = true;
+    command_queue.clear();
+    signal_thread.Reset();
+    signal_done.Set();
+    signal_synch.Reset();
 
     LOG_DEBUG(HW_GPU, "initialized OK");
 }

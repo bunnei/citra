@@ -110,7 +110,6 @@ void RendererOpenGL::SwapBuffers() {
     }
 
     // Swap buffers
-    render_window->PollEvents();
     render_window->SwapBuffers();
 
     prev_state.Apply();
@@ -379,6 +378,8 @@ void RendererOpenGL::Init() {
     LOG_INFO(Render_OpenGL, "GL_VENDOR: %s", glGetString(GL_VENDOR));
     LOG_INFO(Render_OpenGL, "GL_RENDERER: %s", glGetString(GL_RENDERER));
     InitOpenGLObjects();
+
+    render_window->DoneCurrent();
 }
 
 /// Shutdown the renderer

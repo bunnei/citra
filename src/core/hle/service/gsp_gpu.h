@@ -91,7 +91,10 @@ static_assert(offsetof(FrameBufferUpdate, framebuffer_info[1]) == 0x20, "FrameBu
 
 /// GSP command
 struct Command {
-    BitField<0, 8, CommandId> id;
+    union {
+        BitField< 0, 8, CommandId> id;
+        BitField<24, 8, u32      > flush;
+    };
 
     union {
         struct {
@@ -169,5 +172,11 @@ public:
  * @param interrupt_id ID of interrupt that is being signalled
  */
 void SignalInterrupt(InterruptId interrupt_id);
+
+/**
+ * Signals that the specified interrupt type has occurred to userland code from the core thread
+ * @param interrupt_id ID of interrupt that is being signalled
+ */
+void SignalInterrupt_ThreadSafe(InterruptId interrupt_id);
 
 } // namespace

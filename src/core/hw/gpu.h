@@ -290,11 +290,28 @@ static_assert(sizeof(Regs) == 0x1000 * sizeof(u32), "Invalid total size of regis
 extern Regs g_regs;
 extern bool g_skip_frame;
 
+enum class Command {
+    None = 0,
+    SwapBuffers = 1,
+    MemoryFill_0 = 2,
+    MemoryFill_1 = 3,
+    DisplayTransfer = 4,
+    CommandList = 5,
+    NotifyPreRead = 6,
+    NotifyFlush = 7,
+};
+
 template <typename T>
 void Read(T &var, const u32 addr);
 
 template <typename T>
 void Write(u32 addr, const T data);
+
+void SendCommand(Command cmd);
+
+void NotifyPreRead(PAddr addr, u32 size);
+
+void NotifyFlush(PAddr addr, u32 size);
 
 /// Initialize hardware
 void Init();
@@ -302,5 +319,8 @@ void Init();
 /// Shutdown hardware
 void Shutdown();
 
+void WaitUntilDone();
+
+void WaitForLastCommand();
 
 } // namespace

@@ -1103,11 +1103,17 @@ struct State {
 
     /// Vertex shader memory
     struct {
-        struct {
-            Math::Vec4<float24> f[96];
-            std::array<bool, 16> b;
-            std::array<Math::Vec4<u8>, 4> i;
-        } uniforms;
+        std::array<bool, 16> uniforms_b;
+        std::array<Math::Vec4<u8>, 4> uniforms_i;
+
+        union {
+            struct {
+                f32 regs_[16][4];
+                f32 temporary[16][4];
+                f32 uniforms_f[96][4];
+            };
+            f32 regs[128][4];
+        };
 
         Math::Vec4<float24> default_attributes[16];
 

@@ -62,7 +62,7 @@ struct VertexShaderState {
 };
 
 static void ProcessShaderCode(VertexShaderState& state) {
-    const auto& uniforms = g_state.vs.uniforms;
+    const auto& vs = g_state.vs;
     const auto& swizzle_data = g_state.vs.swizzle_data;
     const auto& program_code = g_state.vs.program_code;
 
@@ -109,7 +109,7 @@ static void ProcessShaderCode(VertexShaderState& state) {
                 return &state.temporary_registers[source_reg.GetIndex()].x;
 
             case RegisterType::FloatUniform:
-                return &uniforms.f[source_reg.GetIndex()].x;
+                return (const float24*)vs.uniforms_f[source_reg.GetIndex()];
 
             default:
                 return dummy_vec4_float24;
@@ -447,7 +447,7 @@ static void ProcessShaderCode(VertexShaderState& state) {
                 break;
 
             case OpCode::Id::JMPU:
-                if (uniforms.b[instr.flow_control.bool_uniform_id]) {
+                if (vs.uniforms_b[instr.flow_control.bool_uniform_id]) {
                     state.program_counter = &program_code[instr.flow_control.dest_offset] - 1;
                 }
                 break;
@@ -460,7 +460,7 @@ static void ProcessShaderCode(VertexShaderState& state) {
                 break;
 
             case OpCode::Id::CALLU:
-                if (uniforms.b[instr.flow_control.bool_uniform_id]) {
+                if (vs.uniforms_b[instr.flow_control.bool_uniform_id]) {
                     call(state,
                         instr.flow_control.dest_offset,
                         instr.flow_control.num_instructions,
@@ -481,7 +481,7 @@ static void ProcessShaderCode(VertexShaderState& state) {
                 break;
 
             case OpCode::Id::IFU:
-                if (uniforms.b[instr.flow_control.bool_uniform_id]) {
+                if (vs.uniforms_b[instr.flow_control.bool_uniform_id]) {
                     call(state,
                          binary_offset + 1,
                          instr.flow_control.dest_offset - binary_offset - 1,
@@ -516,14 +516,14 @@ static void ProcessShaderCode(VertexShaderState& state) {
 
             case OpCode::Id::LOOP:
             {
-                state.address_registers[2] = uniforms.i[instr.flow_control.int_uniform_id].y;
+                state.address_registers[2] = vs.uniforms_i[instr.flow_control.int_uniform_id].y;
 
                 call(state,
                      binary_offset + 1,
                      instr.flow_control.dest_offset - binary_offset + 1,
                      instr.flow_control.dest_offset + 1,
-                     uniforms.i[instr.flow_control.int_uniform_id].x,
-                     uniforms.i[instr.flow_control.int_uniform_id].z);
+                     vs.uniforms_i[instr.flow_control.int_uniform_id].x,
+                     vs.uniforms_i[instr.flow_control.int_uniform_id].z);
                 break;
             }
 

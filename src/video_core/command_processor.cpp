@@ -12,6 +12,7 @@
 #include "pica.h"
 #include "primitive_assembly.h"
 #include "vertex_shader.h"
+#include "vertex_shader_fast.h"
 #include "video_core.h"
 #include "core/hle/service/gsp_gpu.h"
 #include "core/hw/gpu.h"
@@ -225,7 +226,7 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
 
         case PICA_REG_INDEX(vs_bool_uniforms):
             for (unsigned i = 0; i < 16; ++i)
-                g_state.vs.uniforms.b[i] = (regs.vs_bool_uniforms.Value() & (1 << i)) != 0;
+                g_state.vs.uniforms_b[i] = (regs.vs_bool_uniforms.Value() & (1 << i)) != 0;
 
             break;
 
@@ -236,7 +237,7 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
         {
             int index = (id - PICA_REG_INDEX_WORKAROUND(vs_int_uniforms[0], 0x2b1));
             auto values = regs.vs_int_uniforms[index];
-            g_state.vs.uniforms.i[index] = Math::Vec4<u8>(values.x, values.y, values.z, values.w);
+            g_state.vs.uniforms_i[index] = Math::Vec4<u8>(values.x, values.y, values.z, values.w);
             LOG_TRACE(HW_GPU, "Set integer uniform %d to %02x %02x %02x %02x",
                       index, values.x.Value(), values.y.Value(), values.z.Value(), values.w.Value());
             break;
@@ -264,7 +265,7 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
                 (float_regs_counter >= 3 && !uniform_setup.IsFloat32())) {
                 float_regs_counter = 0;
 
-                auto& uniform = g_state.vs.uniforms.f[uniform_setup.index];
+                auto& uniform = g_state.vs.uniforms_f[uniform_setup.index];
 
                 if (uniform_setup.index > 95) {
                     LOG_ERROR(HW_GPU, "Invalid VS uniform index %d", (int)uniform_setup.index);
@@ -274,13 +275,13 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
                 // NOTE: The destination component order indeed is "backwards"
                 if (uniform_setup.IsFloat32()) {
                     for (auto i : {0,1,2,3})
-                        uniform[3 - i] = float24::FromFloat32(*(float*)(&uniform_write_buffer[i]));
+                        uniform[3 - i] = *(float*)(&uniform_write_buffer[i]);
                 } else {
                     // TODO: Untested
-                    uniform.w = float24::FromRawFloat24(uniform_write_buffer[0] >> 8);
-                    uniform.z = float24::FromRawFloat24(((uniform_write_buffer[0] & 0xFF)<<16) | ((uniform_write_buffer[1] >> 16) & 0xFFFF));
-                    uniform.y = float24::FromRawFloat24(((uniform_write_buffer[1] & 0xFFFF)<<8) | ((uniform_write_buffer[2] >> 24) & 0xFF));
-                    uniform.x = float24::FromRawFloat24(uniform_write_buffer[2] & 0xFFFFFF);
+                    uniform[3] = float24::FromRawFloat24(uniform_write_buffer[0] >> 8).ToFloat32();
+                    uniform[2] = float24::FromRawFloat24(((uniform_write_buffer[0] & 0xFF) << 16) | ((uniform_write_buffer[1] >> 16) & 0xFFFF)).ToFloat32();
+                    uniform[1] = float24::FromRawFloat24(((uniform_write_buffer[1] & 0xFFFF) << 8) | ((uniform_write_buffer[2] >> 24) & 0xFF)).ToFloat32();
+                    uniform[0] = float24::FromRawFloat24(uniform_write_buffer[2] & 0xFFFFFF).ToFloat32();
                 }
 
                 LOG_TRACE(HW_GPU, "Set uniform %x to (%f %f %f %f)", (int)uniform_setup.index,

@@ -1101,24 +1101,7 @@ struct State {
     struct {
         std::array<bool, 16> uniforms_b;
         std::array<Math::Vec4<u8>, 4> uniforms_i;
-
-        f32 inputs[16][4];
-        union {
-            struct {
-                f32 output[16][4];
-                f32 temporary[16][4];
-                f32 uniforms_f[96][4];
-            };
-            f32 regs[128][4];
-        };
-
-        const f32* InputReg(int index) {
-            return (index < 16) ? inputs[index] : regs[index];
-        }
-
-        f32* OutputReg(int index) {
-            return regs[index];
-        }
+        f32 uniforms_f[96][4];
 
         Math::Vec4<float24> default_attributes[16];
 

@@ -202,28 +202,7 @@ static_assert(sizeof(SwizzlePattern) == 0x4, "Incorrect structure size");
 
 namespace VertexShaderFast {
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-struct State {
-    u32 pc;
-    s32 address_offset[4];
-    bool conditional_code[2];
-
-    struct CallStackElement {
-        u32 final_address;  // Address upon which we jump to return_address
-        u32 return_address; // Where to jump when leaving scope
-        u8 repeat_counter;  // How often to repeat until this call stack element is removed
-        u8 loop_increment;  // Which value to add to the loop counter after an iteration
-        // TODO: Should this be a signed value? Does it even matter?
-        u32 loop_address;   // The address where we'll return to after each loop iteration
-    };
-
-    // TODO: Is there a maximal size for this?
-    std::vector<CallStackElement> call_stack;
-};
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
+// Shader cache structs
 
 struct SrcOperand {
     const f32* x;
@@ -249,7 +228,7 @@ struct DstOperand {
     }
 };
 
-struct InstructionInfo {
+struct CachedInstruction {
     SrcOperand src1;
     SrcOperand src2;
     SrcOperand src3;
@@ -258,9 +237,55 @@ struct InstructionInfo {
     f32 sign; // src1 * src2 sign, minor optimization for some instructions
 };
 
-struct ShaderInfo {
-    std::array<InstructionInfo, 1024> instructions;
+struct CachedShader {
+    std::array<CachedInstruction, 1024> instructions;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct State {
+    u32 pc;
+    s32 address_offset[4];
+    bool conditional_code[2];
+
+    struct CallStackElement {
+        u32 final_address;  // Address upon which we jump to return_address
+        u32 return_address; // Where to jump when leaving scope
+        u8 repeat_counter;  // How often to repeat until this call stack element is removed
+        u8 loop_increment;  // Which value to add to the loop counter after an iteration
+        // TODO: Should this be a signed value? Does it even matter?
+        u32 loop_address;   // The address where we'll return to after each loop iteration
+    };
+
+    // TODO: Is there a maximal size for this?
+    std::vector<CallStackElement> call_stack;
+
+    f32 inputs[16][4];
+    union {
+        struct {
+            f32 output[16][4];    // 0x00 -> 0x0f
+            //f32 input[16][4];  
+            f32 temporary[16][4]; // 0x10 -> 0x1f -> 0x20 -> 0x2f // ((index & 0xf) | ((index & 0x10) << 1)
+        };
+        f32 regs[32][4];
+    };
+
+    const f32* InputReg(int index) {
+        return (index < 16) ? inputs[index] : (index < 32) ? temporary[index - 16] : g_state.vs.uniforms_f[index - 32];
+    }
+
+    f32* OutputReg(int index) {
+        return regs[index];
+    }
+
+    std::unordered_map<u64, std::unique_ptr<CachedShader>> cache;
+    const CachedShader* cached_shader;
+};
+
+static const int num_vs_cores = 2;
+static State vs_core[num_vs_cores];
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static inline void Call(State& state, u32 offset, u32 num_instructions, u32 return_offset, u8 repeat_count, u8 loop_increment) {
     state.pc = offset;
@@ -286,11 +311,12 @@ static inline bool EvaluateCondition(const State& state, bool refx, bool refy, I
     }
 };
 
-void DecodeShader(ShaderInfo* shader) {
+static std::unique_ptr<CachedShader>  DecodeShader(State& core) {
     static f32 dummy_reg = 0.f;
-    auto& vs = g_state.vs;
-    const auto& swizzle_data = vs.swizzle_data;
-    const auto& program_code = vs.program_code;
+    const auto& swizzle_data = g_state.vs.swizzle_data;
+    const auto& program_code = g_state.vs.program_code;
+
+    std::unique_ptr<CachedShader> shader = Common::make_unique<CachedShader>();
 
     for (int i = 0; i < program_code.size(); i++) {
         const Instruction& instr = *(const Instruction*)&program_code[i];
@@ -309,22 +335,22 @@ void DecodeShader(ShaderInfo* shader) {
         {
             auto swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
 
-            SrcOperand src1 = { &vs.InputReg(instr.common.src1)[swizzle.src1_selector_0],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_1],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_2],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_3],
+            SrcOperand src1 = { &core.InputReg(instr.common.src1)[swizzle.src1_selector_0],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_1],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_2],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_3],
                                 swizzle.negate_src1 ? -1.f : 1.f };
 
-            SrcOperand src2 = { &vs.InputReg(instr.common.src2)[swizzle.src2_selector_0],
-                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_1],
-                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_2],
-                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_3],
+            SrcOperand src2 = { &core.InputReg(instr.common.src2)[swizzle.src2_selector_0],
+                                &core.InputReg(instr.common.src2)[swizzle.src2_selector_1],
+                                &core.InputReg(instr.common.src2)[swizzle.src2_selector_2],
+                                &core.InputReg(instr.common.src2)[swizzle.src2_selector_3],
                                 swizzle.negate_src2 ? -1.f : 1.f };
 
-            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.common.dest][0] : &dummy_reg,
-                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.common.dest][1] : &dummy_reg,
-                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.common.dest][2] : &dummy_reg,
-                                swizzle.DestComponentEnabled(3) ? &vs.regs[instr.common.dest][3] : &dummy_reg };
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &core.OutputReg(instr.common.dest)[0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &core.OutputReg(instr.common.dest)[1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &core.OutputReg(instr.common.dest)[2] : &dummy_reg,
+                                swizzle.DestComponentEnabled(3) ? &core.OutputReg(instr.common.dest)[3] : &dummy_reg };
 
             shader->instructions[i] = { src1, src2, {}, dest, src1.sign * src2.sign };
 
@@ -335,21 +361,21 @@ void DecodeShader(ShaderInfo* shader) {
         {
             auto swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
 
-            SrcOperand src1 = { &vs.InputReg(instr.common.src1)[swizzle.src1_selector_0],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_1],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_2],
+            SrcOperand src1 = { &core.InputReg(instr.common.src1)[swizzle.src1_selector_0],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_1],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_2],
                                 &dummy_reg,
                                 swizzle.negate_src1 ? -1.f : 1.f };
 
-            SrcOperand src2 = { &vs.InputReg(instr.common.src2)[swizzle.src2_selector_0],
-                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_1],
-                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_2],
+            SrcOperand src2 = { &core.InputReg(instr.common.src2)[swizzle.src2_selector_0],
+                                &core.InputReg(instr.common.src2)[swizzle.src2_selector_1],
+                                &core.InputReg(instr.common.src2)[swizzle.src2_selector_2],
                                 &dummy_reg,
                                 swizzle.negate_src2 ? -1.f : 1.f };
 
-            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.common.dest][0] : &dummy_reg,
-                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.common.dest][1] : &dummy_reg,
-                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.common.dest][2] : &dummy_reg,
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &core.OutputReg(instr.common.dest)[0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &core.OutputReg(instr.common.dest)[1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &core.OutputReg(instr.common.dest)[2] : &dummy_reg,
                                 &dummy_reg };
 
             shader->instructions[i] = { src1, src2, {}, dest, src1.sign * src2.sign };
@@ -368,16 +394,16 @@ void DecodeShader(ShaderInfo* shader) {
         {
             auto swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
 
-            SrcOperand src1 = { &vs.InputReg(instr.common.src1)[swizzle.src1_selector_0],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_1],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_2],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_3],
+            SrcOperand src1 = { &core.InputReg(instr.common.src1)[swizzle.src1_selector_0],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_1],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_2],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_3],
                                 swizzle.negate_src1 ? -1.f : 1.f };
 
-            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.common.dest][0] : &dummy_reg,
-                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.common.dest][1] : &dummy_reg,
-                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.common.dest][2] : &dummy_reg,
-                                swizzle.DestComponentEnabled(3) ? &vs.regs[instr.common.dest][3] : &dummy_reg };
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &core.OutputReg(instr.common.dest)[0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &core.OutputReg(instr.common.dest)[1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &core.OutputReg(instr.common.dest)[2] : &dummy_reg,
+                                swizzle.DestComponentEnabled(3) ? &core.OutputReg(instr.common.dest)[3] : &dummy_reg };
 
             shader->instructions[i] = { src1, {}, {}, dest };
 
@@ -391,22 +417,22 @@ void DecodeShader(ShaderInfo* shader) {
         {
             auto swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
 
-            SrcOperand src1 = { &vs.InputReg(instr.common.src1i)[swizzle.src1_selector_0],
-                                &vs.InputReg(instr.common.src1i)[swizzle.src1_selector_1],
-                                &vs.InputReg(instr.common.src1i)[swizzle.src1_selector_2],
-                                &vs.InputReg(instr.common.src1i)[swizzle.src1_selector_3],
+            SrcOperand src1 = { &core.InputReg(instr.common.src1i)[swizzle.src1_selector_0],
+                                &core.InputReg(instr.common.src1i)[swizzle.src1_selector_1],
+                                &core.InputReg(instr.common.src1i)[swizzle.src1_selector_2],
+                                &core.InputReg(instr.common.src1i)[swizzle.src1_selector_3],
                                 swizzle.negate_src1 ? -1.f : 1.f };
 
-            SrcOperand src2 = { &vs.InputReg(instr.common.src2i)[swizzle.src2_selector_0],
-                                &vs.InputReg(instr.common.src2i)[swizzle.src2_selector_1],
-                                &vs.InputReg(instr.common.src2i)[swizzle.src2_selector_2],
-                                &vs.InputReg(instr.common.src2i)[swizzle.src2_selector_3],
+            SrcOperand src2 = { &core.InputReg(instr.common.src2i)[swizzle.src2_selector_0],
+                                &core.InputReg(instr.common.src2i)[swizzle.src2_selector_1],
+                                &core.InputReg(instr.common.src2i)[swizzle.src2_selector_2],
+                                &core.InputReg(instr.common.src2i)[swizzle.src2_selector_3],
                                 swizzle.negate_src2 ? -1.f : 1.f };
 
-            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.common.dest][0] : &dummy_reg,
-                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.common.dest][1] : &dummy_reg,
-                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.common.dest][2] : &dummy_reg,
-                                swizzle.DestComponentEnabled(3) ? &vs.regs[instr.common.dest][3] : &dummy_reg };
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &core.OutputReg(instr.common.dest)[0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &core.OutputReg(instr.common.dest)[1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &core.OutputReg(instr.common.dest)[2] : &dummy_reg,
+                                swizzle.DestComponentEnabled(3) ? &core.OutputReg(instr.common.dest)[3] : &dummy_reg };
 
             shader->instructions[i] = { src1, src2, {}, dest };
 
@@ -441,16 +467,16 @@ void DecodeShader(ShaderInfo* shader) {
         {
             auto swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
 
-            SrcOperand src1 = { &vs.InputReg(instr.common.src1)[swizzle.src1_selector_0],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_1],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_2],
-                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_3],
+            SrcOperand src1 = { &core.InputReg(instr.common.src1)[swizzle.src1_selector_0],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_1],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_2],
+                                &core.InputReg(instr.common.src1)[swizzle.src1_selector_3],
                                 swizzle.negate_src1 ? -1.f : 1.f };
 
-            SrcOperand src2 = { &vs.InputReg(instr.common.src2)[swizzle.src2_selector_0],
-                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_1],
-                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_2],
-                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_3],
+            SrcOperand src2 = { &core.InputReg(instr.common.src2)[swizzle.src2_selector_0],
+                                &core.InputReg(instr.common.src2)[swizzle.src2_selector_1],
+                                &core.InputReg(instr.common.src2)[swizzle.src2_selector_2],
+                                &core.InputReg(instr.common.src2)[swizzle.src2_selector_3],
                                 swizzle.negate_src2 ? -1.f : 1.f };
 
             shader->instructions[i] = { src1, src2, {}, {} };
@@ -469,28 +495,28 @@ void DecodeShader(ShaderInfo* shader) {
         {
             const SwizzlePattern& swizzle = *(SwizzlePattern*)&swizzle_data[instr.mad.operand_desc_id];
 
-            SrcOperand src1 = { &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_0],
-                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_1],
-                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_2],
-                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_3],
+            SrcOperand src1 = { &core.InputReg(instr.mad.src1)[swizzle.src1_selector_0],
+                                &core.InputReg(instr.mad.src1)[swizzle.src1_selector_1],
+                                &core.InputReg(instr.mad.src1)[swizzle.src1_selector_2],
+                                &core.InputReg(instr.mad.src1)[swizzle.src1_selector_3],
                                 swizzle.negate_src1 ? -1.f : 1.f };
 
-            SrcOperand src2 = { &vs.InputReg(instr.mad.src2i)[swizzle.src2_selector_0],
-                                &vs.InputReg(instr.mad.src2i)[swizzle.src2_selector_1],
-                                &vs.InputReg(instr.mad.src2i)[swizzle.src2_selector_2],
-                                &vs.InputReg(instr.mad.src2i)[swizzle.src2_selector_3],
+            SrcOperand src2 = { &core.InputReg(instr.mad.src2i)[swizzle.src2_selector_0],
+                                &core.InputReg(instr.mad.src2i)[swizzle.src2_selector_1],
+                                &core.InputReg(instr.mad.src2i)[swizzle.src2_selector_2],
+                                &core.InputReg(instr.mad.src2i)[swizzle.src2_selector_3],
                                 swizzle.negate_src2 ? -1.f : 1.f };
 
-            SrcOperand src3 = { &vs.InputReg(instr.mad.src3i)[swizzle.src3_selector_0],
-                                &vs.InputReg(instr.mad.src3i)[swizzle.src3_selector_1],
-                                &vs.InputReg(instr.mad.src3i)[swizzle.src3_selector_2],
-                                &vs.InputReg(instr.mad.src3i)[swizzle.src3_selector_3],
+            SrcOperand src3 = { &core.InputReg(instr.mad.src3i)[swizzle.src3_selector_0],
+                                &core.InputReg(instr.mad.src3i)[swizzle.src3_selector_1],
+                                &core.InputReg(instr.mad.src3i)[swizzle.src3_selector_2],
+                                &core.InputReg(instr.mad.src3i)[swizzle.src3_selector_3],
                                 swizzle.negate_src3 ? -1.f : 1.f };
 
-            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.mad.dest][0] : &dummy_reg,
-                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.mad.dest][1] : &dummy_reg,
-                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.mad.dest][2] : &dummy_reg,
-                                swizzle.DestComponentEnabled(3) ? &vs.regs[instr.mad.dest][3] : &dummy_reg };
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &core.OutputReg(instr.mad.dest)[0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &core.OutputReg(instr.mad.dest)[1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &core.OutputReg(instr.mad.dest)[2] : &dummy_reg,
+                                swizzle.DestComponentEnabled(3) ? &core.OutputReg(instr.mad.dest)[3] : &dummy_reg };
 
             shader->instructions[i] = { src1, src2, src3, dest, src1.sign * src2.sign };
 
@@ -509,28 +535,28 @@ void DecodeShader(ShaderInfo* shader) {
         {
             const SwizzlePattern& swizzle = *(SwizzlePattern*)&swizzle_data[instr.mad.operand_desc_id];
 
-            SrcOperand src1 = { &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_0],
-                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_1],
-                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_2],
-                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_3],
+            SrcOperand src1 = { &core.InputReg(instr.mad.src1)[swizzle.src1_selector_0],
+                                &core.InputReg(instr.mad.src1)[swizzle.src1_selector_1],
+                                &core.InputReg(instr.mad.src1)[swizzle.src1_selector_2],
+                                &core.InputReg(instr.mad.src1)[swizzle.src1_selector_3],
                                 swizzle.negate_src1 ? -1.f : 1.f };
 
-            SrcOperand src2 = { &vs.InputReg(instr.mad.src2)[swizzle.src2_selector_0],
-                                &vs.InputReg(instr.mad.src2)[swizzle.src2_selector_1],
-                                &vs.InputReg(instr.mad.src2)[swizzle.src2_selector_2],
-                                &vs.InputReg(instr.mad.src2)[swizzle.src2_selector_3],
+            SrcOperand src2 = { &core.InputReg(instr.mad.src2)[swizzle.src2_selector_0],
+                                &core.InputReg(instr.mad.src2)[swizzle.src2_selector_1],
+                                &core.InputReg(instr.mad.src2)[swizzle.src2_selector_2],
+                                &core.InputReg(instr.mad.src2)[swizzle.src2_selector_3],
                                 swizzle.negate_src2 ? -1.f : 1.f };
 
-            SrcOperand src3 = { &vs.InputReg(instr.mad.src3)[swizzle.src3_selector_0],
-                                &vs.InputReg(instr.mad.src3)[swizzle.src3_selector_1],
-                                &vs.InputReg(instr.mad.src3)[swizzle.src3_selector_2],
-                                &vs.InputReg(instr.mad.src3)[swizzle.src3_selector_3],
+            SrcOperand src3 = { &core.InputReg(instr.mad.src3)[swizzle.src3_selector_0],
+                                &core.InputReg(instr.mad.src3)[swizzle.src3_selector_1],
+                                &core.InputReg(instr.mad.src3)[swizzle.src3_selector_2],
+                                &core.InputReg(instr.mad.src3)[swizzle.src3_selector_3],
                                 swizzle.negate_src3 ? -1.f : 1.f };
 
-            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.mad.dest][0] : &dummy_reg,
-                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.mad.dest][1] : &dummy_reg,
-                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.mad.dest][2] : &dummy_reg,
-                                swizzle.DestComponentEnabled(3) ? &vs.regs[instr.mad.dest][3] : &dummy_reg };
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &core.OutputReg(instr.mad.dest)[0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &core.OutputReg(instr.mad.dest)[1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &core.OutputReg(instr.mad.dest)[2] : &dummy_reg,
+                                swizzle.DestComponentEnabled(3) ? &core.OutputReg(instr.mad.dest)[3] : &dummy_reg };
 
             shader->instructions[i] = { src1, src2, src3, dest, src1.sign * src2.sign };
 
@@ -541,17 +567,35 @@ void DecodeShader(ShaderInfo* shader) {
             continue;
         }
     }
+
+    return shader;
 }
 
-std::unordered_map<u64, std::unique_ptr<ShaderInfo>> vertex_shader_cache;
+void LoadShader() {
+    u64 hash = Common::GetCRC32((const u8*)g_state.vs.program, 8192, 256);
 
-VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int num_attributes) {
+    // Shader needs to be decoded for each shader core
+    for (int i = 0; i < num_vs_cores; ++i) {
+        auto& state = vs_core[i];
+        auto& cached_shader = state.cache.find(hash);
+
+        if (cached_shader != state.cache.end()) {
+            state.cached_shader = cached_shader->second.get();
+        } else {
+            std::unique_ptr<CachedShader> cached_shader = DecodeShader(state);
+            state.cached_shader = cached_shader.get();
+            state.cache.emplace(hash, std::move(cached_shader));
+        }
+    }
+}
+
+VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int num_attributes, int core_num) {
     const auto& regs = g_state.regs;
     auto& vs = g_state.vs;
     const auto& swizzle_data = g_state.vs.swizzle_data;
     const auto& program_code = g_state.vs.program_code;
     bool exit_loop = false;
-    State state;
+    State& state = vs_core[core_num];
 
     state.pc = regs.vs_main_offset;
     state.address_offset[0] = 0;
@@ -561,24 +605,11 @@ VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int
     const auto& reg_map = regs.vs_input_register_map;
 
     for (int i = 0; i < num_attributes; ++i) {
-        f32* reg = vs.inputs[reg_map.GetRegisterForAttribute(i)];
+        f32* reg = state.inputs[reg_map.GetRegisterForAttribute(i)];
         reg[0] = input.attr[i].x.ToFloat32();
         reg[1] = input.attr[i].y.ToFloat32();
         reg[2] = input.attr[i].z.ToFloat32();
         reg[3] = input.attr[i].w.ToFloat32();
-    }
-
-    u64 cache_key = Common::GetCRC32((const u8*)vs.program, 8192, 128);
-    auto cached_shader = vertex_shader_cache.find(cache_key);
-    ShaderInfo* shader_info;
-
-    if (cached_shader != vertex_shader_cache.end()) {
-        shader_info = cached_shader->second.get();
-    } else {
-        std::unique_ptr<ShaderInfo> new_shader_info = Common::make_unique<ShaderInfo>();
-        shader_info = new_shader_info.get();
-        DecodeShader(shader_info);
-        vertex_shader_cache.emplace(cache_key, std::move(new_shader_info));
     }
 
     while (true) {
@@ -601,7 +632,7 @@ VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int
         }
 
         const Instruction& instr = *(const Instruction*)&program_code[state.pc];
-        InstructionInfo instr_info = shader_info->instructions[state.pc];
+        CachedInstruction instr_info = state.cached_shader->instructions[state.pc];
 
         switch (instr.opcode) {
         case OpCode::ADD:
@@ -953,7 +984,7 @@ VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int
         for (int comp = 0; comp < 4; ++comp) {
             float24* out = ((float24*)&ret) + semantics[comp];
             if (semantics[comp] != Regs::VSOutputAttributes::INVALID) {
-                *out = float24::FromFloat32(vs.regs[i][comp]);
+                *out = float24::FromFloat32(state.output[i][comp]);
             } else {
                 // Zero output so that attributes which aren't output won't have denormals in them,
                 // which would slow us down later.

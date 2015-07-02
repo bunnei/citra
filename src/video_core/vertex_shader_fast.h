@@ -5,7 +5,9 @@ namespace Pica {
 
 namespace VertexShaderFast {
 
-VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int num_attributes);
+void LoadShader();
+
+VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int num_attributes, int core_num);
 
 } // namespace VertexShaderFast
 

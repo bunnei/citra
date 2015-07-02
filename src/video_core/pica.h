@@ -793,14 +793,10 @@ struct Regs {
         BitField<56, 4, u64> attribute14_register;
         BitField<60, 4, u64> attribute15_register;
 
+        BitField<0, 64, u64> attribute_register;
+
         int GetRegisterForAttribute(int attribute_index) const {
-            u64 fields[] = {
-                attribute0_register,  attribute1_register,  attribute2_register,  attribute3_register,
-                attribute4_register,  attribute5_register,  attribute6_register,  attribute7_register,
-                attribute8_register,  attribute9_register,  attribute10_register, attribute11_register,
-                attribute12_register, attribute13_register, attribute14_register, attribute15_register,
-            };
-            return (int)fields[attribute_index];
+            return (int)(attribute_register >> (attribute_index << 2) & 0xf);
         }
     } vs_input_register_map;
 
@@ -1106,19 +1102,33 @@ struct State {
         std::array<bool, 16> uniforms_b;
         std::array<Math::Vec4<u8>, 4> uniforms_i;
 
+        f32 inputs[16][4];
         union {
             struct {
-                f32 regs_[16][4];
+                f32 output[16][4];
                 f32 temporary[16][4];
                 f32 uniforms_f[96][4];
             };
             f32 regs[128][4];
         };
 
+        const f32* InputReg(int index) {
+            return (index < 16) ? inputs[index] : regs[index];
+        }
+
+        f32* OutputReg(int index) {
+            return regs[index];
+        }
+
         Math::Vec4<float24> default_attributes[16];
 
-        std::array<u32, 1024> program_code;
-        std::array<u32, 1024> swizzle_data;
+        union {
+            struct {
+                std::array<u32, 1024> program_code;
+                std::array<u32, 1024> swizzle_data;
+            };
+            u32 program[2048];
+        };
     } vs;
 
     /// Current Pica command list

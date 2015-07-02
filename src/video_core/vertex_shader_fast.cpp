@@ -1,8 +1,10 @@
-//#include "video_core/vertex_shader.h"
+#include <array>
+#include <memory>
+#include <unordered_map>
+#include <vector>
 
-#include <stack>
-
-#include <nihstro/shader_bytecode.h>
+#include "common/hash.h"
+#include "common/make_unique.h"
 
 #include "video_core/vertex_shader_fast.h"
 
@@ -57,13 +59,11 @@ union Instruction {
 
     BitField<0x1a, 0x6, OpCode> opcode;
 
-
     // General notes:
     //
     // When two input registers are used, one of them uses a 5-bit index while the other
     // one uses a 7-bit index. This is because at most one floating point uniform may be used
     // as an input.
-
 
     // Format used e.g. by arithmetic instructions and comparisons
     union Common { // TODO: Remove name
@@ -91,6 +91,7 @@ union Instruction {
          */
         BitField<0x07, 0x5, u32> src2;
         BitField<0x0c, 0x7, u32> src1;
+
         BitField<0x07, 0x7, u32> src2i;
         BitField<0x0e, 0x5, u32> src1i;
 
@@ -111,28 +112,7 @@ union Instruction {
 
             BitField<0x15, 0x3, Op> y;
             BitField<0x18, 0x3, Op> x;
-
-            const std::string ToString(Op op) const {
-                switch (op) {
-                case Equal:        return "==";
-                case NotEqual:     return "!=";
-                case LessThan:     return "<";
-                case LessEqual:    return "<=";
-                case GreaterThan:  return ">";
-                case GreaterEqual: return ">=";
-                case Unk6:         return "UNK6";
-                case Unk7:         return "UNK7";
-                default:           return "";
-                };
-            }
         } compare_op;
-
-        std::string AddressRegisterName() const {
-            if (address_register_index == 0) return "";
-            else if (address_register_index == 1) return "a0.x";
-            else if (address_register_index == 2) return "a0.y";
-            else /*if (address_register_index == 3)*/ return "aL";
-        }
 
         BitField<0x15, 0x5, u32> dest;
     } common;
@@ -155,6 +135,19 @@ union Instruction {
         BitFlag<0x18, u32> refy;
         BitFlag<0x19, u32> refx;
     } flow_control;
+
+    union {
+        BitField<0x00, 0x5, u32> operand_desc_id;
+
+        BitField<0x05, 0x5, u32> src3;
+        BitField<0x0a, 0x7, u32> src2;
+        BitField<0x11, 0x7, u32> src1;
+
+        BitField<0x05, 0x7, u32> src3i;
+        BitField<0x0c, 0x5, u32> src2i;
+
+        BitField<0x18, 0x5, u32> dest;
+    } cmp;
 
     union {
         BitField<0x00, 0x5, u32> operand_desc_id;
@@ -209,16 +202,11 @@ static_assert(sizeof(SwizzlePattern) == 0x4, "Incorrect structure size");
 
 namespace VertexShaderFast {
 
-enum RegisterOffset {
-    Input = 0,
-    Temporary = 16,
-    Uniform = 32,
-};
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct State {
-    const u32* pc;
-
-    s32 address_registers[3];
+    u32 pc;
+    s32 address_offset[4];
     bool conditional_code[2];
 
     struct CallStackElement {
@@ -231,8 +219,331 @@ struct State {
     };
 
     // TODO: Is there a maximal size for this?
-    std::stack<CallStackElement> call_stack;
+    std::vector<CallStackElement> call_stack;
 };
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct SrcOperand {
+    const f32* x;
+    const f32* y;
+    const f32* z;
+    const f32* w;
+
+    f32 sign;
+
+    const f32* operator [] (int i) {
+        return *(&x + i);
+    }
+};
+
+struct DstOperand {
+    f32* x;
+    f32* y;
+    f32* z;
+    f32* w;
+
+    f32* operator [] (int i) {
+        return *(&x + i);
+    }
+};
+
+struct InstructionInfo {
+    SrcOperand src1;
+    SrcOperand src2;
+    SrcOperand src3;
+    DstOperand dest;
+
+    f32 sign; // src1 * src2 sign, minor optimization for some instructions
+};
+
+struct ShaderInfo {
+    std::array<InstructionInfo, 1024> instructions;
+};
+
+static inline void Call(State& state, u32 offset, u32 num_instructions, u32 return_offset, u8 repeat_count, u8 loop_increment) {
+    state.pc = offset;
+    state.call_stack.push_back({ offset + num_instructions, return_offset, repeat_count, loop_increment, offset });
+};
+
+static inline bool EvaluateCondition(const State& state, bool refx, bool refy, Instruction::FlowControlType flow_control) {
+    const bool results[2] = { refx == state.conditional_code[0],
+                              refy == state.conditional_code[1] };
+
+    switch (flow_control.op) {
+    case flow_control.Or:
+        return results[0] || results[1];
+
+    case flow_control.And:
+        return results[0] && results[1];
+
+    case flow_control.JustX:
+        return results[0];
+
+    case flow_control.JustY:
+        return results[1];
+    }
+};
+
+void DecodeShader(ShaderInfo* shader) {
+    static f32 dummy_reg = 0.f;
+    auto& vs = g_state.vs;
+    const auto& swizzle_data = vs.swizzle_data;
+    const auto& program_code = vs.program_code;
+
+    for (int i = 0; i < program_code.size(); i++) {
+        const Instruction& instr = *(const Instruction*)&program_code[i];
+
+        switch (instr.opcode) {
+
+        // Format 1
+        case OpCode::ADD:
+        case OpCode::DP4:
+        case OpCode::DPH:
+        case OpCode::MUL:
+        case OpCode::SGE:
+        case OpCode::SLT:
+        case OpCode::MAX:
+        case OpCode::MIN:
+        {
+            auto swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
+
+            SrcOperand src1 = { &vs.InputReg(instr.common.src1)[swizzle.src1_selector_0],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_1],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_2],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_3],
+                                swizzle.negate_src1 ? -1.f : 1.f };
+
+            SrcOperand src2 = { &vs.InputReg(instr.common.src2)[swizzle.src2_selector_0],
+                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_1],
+                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_2],
+                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_3],
+                                swizzle.negate_src2 ? -1.f : 1.f };
+
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.common.dest][0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.common.dest][1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.common.dest][2] : &dummy_reg,
+                                swizzle.DestComponentEnabled(3) ? &vs.regs[instr.common.dest][3] : &dummy_reg };
+
+            shader->instructions[i] = { src1, src2, {}, dest, src1.sign * src2.sign };
+
+            continue;
+        }
+
+        case OpCode::DP3:
+        {
+            auto swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
+
+            SrcOperand src1 = { &vs.InputReg(instr.common.src1)[swizzle.src1_selector_0],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_1],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_2],
+                                &dummy_reg,
+                                swizzle.negate_src1 ? -1.f : 1.f };
+
+            SrcOperand src2 = { &vs.InputReg(instr.common.src2)[swizzle.src2_selector_0],
+                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_1],
+                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_2],
+                                &dummy_reg,
+                                swizzle.negate_src2 ? -1.f : 1.f };
+
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.common.dest][0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.common.dest][1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.common.dest][2] : &dummy_reg,
+                                &dummy_reg };
+
+            shader->instructions[i] = { src1, src2, {}, dest, src1.sign * src2.sign };
+
+            continue;
+        }
+
+        // Format 1u
+        case OpCode::EX2:
+        case OpCode::LG2:
+        case OpCode::FLR:
+        case OpCode::RCP:
+        case OpCode::RSQ:
+        case OpCode::MOVA:
+        case OpCode::MOV:
+        {
+            auto swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
+
+            SrcOperand src1 = { &vs.InputReg(instr.common.src1)[swizzle.src1_selector_0],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_1],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_2],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_3],
+                                swizzle.negate_src1 ? -1.f : 1.f };
+
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.common.dest][0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.common.dest][1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.common.dest][2] : &dummy_reg,
+                                swizzle.DestComponentEnabled(3) ? &vs.regs[instr.common.dest][3] : &dummy_reg };
+
+            shader->instructions[i] = { src1, {}, {}, dest };
+
+            continue;
+        }
+
+        // Format 1i
+        case OpCode::DPHI:
+        case OpCode::SGEI:
+        case OpCode::SLTI:
+        {
+            auto swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
+
+            SrcOperand src1 = { &vs.InputReg(instr.common.src1i)[swizzle.src1_selector_0],
+                                &vs.InputReg(instr.common.src1i)[swizzle.src1_selector_1],
+                                &vs.InputReg(instr.common.src1i)[swizzle.src1_selector_2],
+                                &vs.InputReg(instr.common.src1i)[swizzle.src1_selector_3],
+                                swizzle.negate_src1 ? -1.f : 1.f };
+
+            SrcOperand src2 = { &vs.InputReg(instr.common.src2i)[swizzle.src2_selector_0],
+                                &vs.InputReg(instr.common.src2i)[swizzle.src2_selector_1],
+                                &vs.InputReg(instr.common.src2i)[swizzle.src2_selector_2],
+                                &vs.InputReg(instr.common.src2i)[swizzle.src2_selector_3],
+                                swizzle.negate_src2 ? -1.f : 1.f };
+
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.common.dest][0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.common.dest][1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.common.dest][2] : &dummy_reg,
+                                swizzle.DestComponentEnabled(3) ? &vs.regs[instr.common.dest][3] : &dummy_reg };
+
+            shader->instructions[i] = { src1, src2, {}, dest };
+
+            continue;
+        }
+
+        // Format 0
+        case OpCode::NOP:
+        case OpCode::END:
+        case OpCode::EMIT:
+
+        // Format 2
+        case OpCode::BREAKC:
+        case OpCode::CALL:
+        case OpCode::CALLC:
+        case OpCode::IFC:
+        case OpCode::JMPC:
+
+        // Format 3
+        case OpCode::CALLU:
+        case OpCode::IFU:
+        case OpCode::LOOP:
+        case OpCode::JMPU:
+
+        // Format 4
+        case OpCode::SETEMIT:
+            continue;
+
+        // Format 1c
+        case OpCode::CMP:
+        case OpCode::CMP + 1:
+        {
+            auto swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
+
+            SrcOperand src1 = { &vs.InputReg(instr.common.src1)[swizzle.src1_selector_0],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_1],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_2],
+                                &vs.InputReg(instr.common.src1)[swizzle.src1_selector_3],
+                                swizzle.negate_src1 ? -1.f : 1.f };
+
+            SrcOperand src2 = { &vs.InputReg(instr.common.src2)[swizzle.src2_selector_0],
+                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_1],
+                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_2],
+                                &vs.InputReg(instr.common.src2)[swizzle.src2_selector_3],
+                                swizzle.negate_src2 ? -1.f : 1.f };
+
+            shader->instructions[i] = { src1, src2, {}, {} };
+            continue;
+        }
+
+        // Format 5i
+        case OpCode::MADI:
+        case OpCode::MADI + 1:
+        case OpCode::MADI + 2:
+        case OpCode::MADI + 3:
+        case OpCode::MADI + 4:
+        case OpCode::MADI + 5:
+        case OpCode::MADI + 6:
+        case OpCode::MADI + 7:
+        {
+            const SwizzlePattern& swizzle = *(SwizzlePattern*)&swizzle_data[instr.mad.operand_desc_id];
+
+            SrcOperand src1 = { &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_0],
+                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_1],
+                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_2],
+                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_3],
+                                swizzle.negate_src1 ? -1.f : 1.f };
+
+            SrcOperand src2 = { &vs.InputReg(instr.mad.src2i)[swizzle.src2_selector_0],
+                                &vs.InputReg(instr.mad.src2i)[swizzle.src2_selector_1],
+                                &vs.InputReg(instr.mad.src2i)[swizzle.src2_selector_2],
+                                &vs.InputReg(instr.mad.src2i)[swizzle.src2_selector_3],
+                                swizzle.negate_src2 ? -1.f : 1.f };
+
+            SrcOperand src3 = { &vs.InputReg(instr.mad.src3i)[swizzle.src3_selector_0],
+                                &vs.InputReg(instr.mad.src3i)[swizzle.src3_selector_1],
+                                &vs.InputReg(instr.mad.src3i)[swizzle.src3_selector_2],
+                                &vs.InputReg(instr.mad.src3i)[swizzle.src3_selector_3],
+                                swizzle.negate_src3 ? -1.f : 1.f };
+
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.mad.dest][0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.mad.dest][1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.mad.dest][2] : &dummy_reg,
+                                swizzle.DestComponentEnabled(3) ? &vs.regs[instr.mad.dest][3] : &dummy_reg };
+
+            shader->instructions[i] = { src1, src2, src3, dest, src1.sign * src2.sign };
+
+            continue;
+        }
+
+        // Format 5
+        case OpCode::MAD:
+        case OpCode::MAD + 1:
+        case OpCode::MAD + 2:
+        case OpCode::MAD + 3:
+        case OpCode::MAD + 4:
+        case OpCode::MAD + 5:
+        case OpCode::MAD + 6:
+        case OpCode::MAD + 7:
+        {
+            const SwizzlePattern& swizzle = *(SwizzlePattern*)&swizzle_data[instr.mad.operand_desc_id];
+
+            SrcOperand src1 = { &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_0],
+                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_1],
+                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_2],
+                                &vs.InputReg(instr.mad.src1)[swizzle.src1_selector_3],
+                                swizzle.negate_src1 ? -1.f : 1.f };
+
+            SrcOperand src2 = { &vs.InputReg(instr.mad.src2)[swizzle.src2_selector_0],
+                                &vs.InputReg(instr.mad.src2)[swizzle.src2_selector_1],
+                                &vs.InputReg(instr.mad.src2)[swizzle.src2_selector_2],
+                                &vs.InputReg(instr.mad.src2)[swizzle.src2_selector_3],
+                                swizzle.negate_src2 ? -1.f : 1.f };
+
+            SrcOperand src3 = { &vs.InputReg(instr.mad.src3)[swizzle.src3_selector_0],
+                                &vs.InputReg(instr.mad.src3)[swizzle.src3_selector_1],
+                                &vs.InputReg(instr.mad.src3)[swizzle.src3_selector_2],
+                                &vs.InputReg(instr.mad.src3)[swizzle.src3_selector_3],
+                                swizzle.negate_src3 ? -1.f : 1.f };
+
+            DstOperand dest = { swizzle.DestComponentEnabled(0) ? &vs.regs[instr.mad.dest][0] : &dummy_reg,
+                                swizzle.DestComponentEnabled(1) ? &vs.regs[instr.mad.dest][1] : &dummy_reg,
+                                swizzle.DestComponentEnabled(2) ? &vs.regs[instr.mad.dest][2] : &dummy_reg,
+                                swizzle.DestComponentEnabled(3) ? &vs.regs[instr.mad.dest][3] : &dummy_reg };
+
+            shader->instructions[i] = { src1, src2, src3, dest, src1.sign * src2.sign };
+
+            continue;
+        }
+
+        default:
+            continue;
+        }
+    }
+}
+
+std::unordered_map<u64, std::unique_ptr<ShaderInfo>> vertex_shader_cache;
 
 VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int num_attributes) {
     const auto& regs = g_state.regs;
@@ -242,81 +553,46 @@ VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int
     bool exit_loop = false;
     State state;
 
-    //for (int i = 0; i < 96; i++) {
-    //    state.regs[RegisterOffset::Uniform + i] = Register(uniforms.f[i].x,
-    //                                                       uniforms.f[i].y,
-    //                                                       uniforms.f[i].z,
-    //                                                       uniforms.f[i].w);
-    //}
-
-    const u32* main = &vs.program_code[regs.vs_main_offset];
-    state.pc = (u32*)main;
+    state.pc = regs.vs_main_offset;
+    state.address_offset[0] = 0;
     state.conditional_code[0] = false;
     state.conditional_code[1] = false;
 
     const auto& reg_map = regs.vs_input_register_map;
 
     for (int i = 0; i < num_attributes; ++i) {
-        auto& reg = vs.regs[reg_map.GetRegisterForAttribute(i)];
+        f32* reg = vs.inputs[reg_map.GetRegisterForAttribute(i)];
         reg[0] = input.attr[i].x.ToFloat32();
         reg[1] = input.attr[i].y.ToFloat32();
         reg[2] = input.attr[i].z.ToFloat32();
         reg[3] = input.attr[i].w.ToFloat32();
     }
 
-#define SWIZZLE_SRC_1_(x) {x[swizzle.src1_selector_0], x[swizzle.src1_selector_1], x[swizzle.src1_selector_2], x[swizzle.src1_selector_3]}
-#define SWIZZLE_SRC_2_(x) {x[swizzle.src2_selector_0], x[swizzle.src2_selector_1], x[swizzle.src2_selector_2], x[swizzle.src2_selector_3]}
-#define SWIZZLE_SRC_3_(x) {x[swizzle.src3_selector_0], x[swizzle.src3_selector_1], x[swizzle.src3_selector_2], x[swizzle.src3_selector_3]}
+    u64 cache_key = Common::GetCRC32((const u8*)vs.program, 8192, 128);
+    auto cached_shader = vertex_shader_cache.find(cache_key);
+    ShaderInfo* shader_info;
 
-#define SWIZZLE_MAD_SRC_1_(x) {x[swizzle_mad.src1_selector_0], x[swizzle_mad.src1_selector_1], x[swizzle_mad.src1_selector_2], x[swizzle_mad.src1_selector_3]}
-#define SWIZZLE_MAD_SRC_2_(x) {x[swizzle_mad.src2_selector_0], x[swizzle_mad.src2_selector_1], x[swizzle_mad.src2_selector_2], x[swizzle_mad.src2_selector_3]}
-#define SWIZZLE_MAD_SRC_3_(x) {x[swizzle_mad.src3_selector_0], x[swizzle_mad.src3_selector_1], x[swizzle_mad.src3_selector_2], x[swizzle_mad.src3_selector_3]}
-
-#define ADDR_OFFS_ ((instr.common.address_register_index == 0) ? 0 : state.address_registers[instr.common.address_register_index - 1])
-#define SRC1 SWIZZLE_SRC_1_(vs.regs[instr.common.src1 + ADDR_OFFS_])
-#define SRC2 SWIZZLE_SRC_2_(vs.regs[instr.common.src2])
-
-#define SRC1_INV SWIZZLE_SRC_1_(vs.regs[instr.common.src1i])
-#define SRC2_INV SWIZZLE_SRC_2_(vs.regs[instr.common.src2i + ADDR_OFFS_])
-
-#define SRC1_MAD SWIZZLE_MAD_SRC_1_(vs.regs[instr.mad.src1])
-#define SRC2_MAD SWIZZLE_MAD_SRC_2_(vs.regs[instr.mad.src2])
-#define SRC3_MAD SWIZZLE_MAD_SRC_3_(vs.regs[instr.mad.src3])
-
-#define DST state.regs[instr.common.dest];
-
-    static auto evaluate_condition = [](const State& state, bool refx, bool refy, Instruction::FlowControlType flow_control) {
-        bool results[2] = { refx == state.conditional_code[0],
-                            refy == state.conditional_code[1] };
-
-        switch (flow_control.op) {
-        case flow_control.Or:
-            return results[0] || results[1];
-
-        case flow_control.And:
-            return results[0] && results[1];
-
-        case flow_control.JustX:
-            return results[0];
-
-        case flow_control.JustY:
-            return results[1];
-        }
-    };
+    if (cached_shader != vertex_shader_cache.end()) {
+        shader_info = cached_shader->second.get();
+    } else {
+        std::unique_ptr<ShaderInfo> new_shader_info = Common::make_unique<ShaderInfo>();
+        shader_info = new_shader_info.get();
+        DecodeShader(shader_info);
+        vertex_shader_cache.emplace(cache_key, std::move(new_shader_info));
+    }
 
     while (true) {
 
         if (!state.call_stack.empty()) {
-            auto& top = state.call_stack.top();
-            if (state.pc - program_code.data() == top.final_address) {
-                state.address_registers[2] += top.loop_increment;
+            auto& top = state.call_stack.back();
+            if (&program_code[state.pc] - program_code.data() == top.final_address) {
+                state.address_offset[2] += top.loop_increment << 2;
 
                 if (top.repeat_counter-- == 0) {
-                    state.pc = &program_code[top.return_address];
-                    state.call_stack.pop();
-                }
-                else {
-                    state.pc = &program_code[top.loop_address];
+                    state.pc = top.return_address;
+                    state.call_stack.pop_back();
+                } else {
+                    state.pc = top.loop_address;
                 }
 
                 // TODO: Is "trying again" accurate to hardware?
@@ -324,147 +600,201 @@ VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int
             }
         }
 
-        static auto call = [&program_code](State& state, u32 offset, u32 num_instructions,
-            u32 return_offset, u8 repeat_count, u8 loop_increment) {
-            state.pc = &program_code[offset];
-            state.call_stack.push({ offset + num_instructions, return_offset, repeat_count, loop_increment, offset });
-        };
-
-        const Instruction& instr = *(const Instruction*)state.pc;
-        const SwizzlePattern& swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
-        const SwizzlePattern& swizzle_mad = *(SwizzlePattern*)&swizzle_data[instr.mad.operand_desc_id];
-
-        u32 binary_offset = state.pc - program_code.data();
+        const Instruction& instr = *(const Instruction*)&program_code[state.pc];
+        InstructionInfo instr_info = shader_info->instructions[state.pc];
 
         switch (instr.opcode) {
         case OpCode::ADD:
         {
-            f32 src1[] = SRC1;
-            f32 src2[] = SRC2;
+            int offset = state.address_offset[instr.common.address_register_index];
 
-            for (int i = 0; i < 4; ++i) {
-                if (!swizzle.DestComponentEnabled(i))
-                    continue;
+            instr_info.dest.x[0] = instr_info.src1.sign * instr_info.src1.x[offset] + instr_info.src2.sign * instr_info.src2.x[0];
+            instr_info.dest.y[0] = instr_info.src1.sign * instr_info.src1.y[offset] + instr_info.src2.sign * instr_info.src2.y[0];
+            instr_info.dest.z[0] = instr_info.src1.sign * instr_info.src1.z[offset] + instr_info.src2.sign * instr_info.src2.z[0];
+            instr_info.dest.w[0] = instr_info.src1.sign * instr_info.src1.w[offset] + instr_info.src2.sign * instr_info.src2.w[0];
 
-                vs.regs[instr.common.dest][i] = src1[i] + src2[i];
-            }
             break;
         }
 
         case OpCode::DP3:
+        {
+            int offset = state.address_offset[instr.common.address_register_index];
+            f32 dot = 0.f;
+
+            for (int i = 0; i < 3; ++i)
+                dot += instr_info.sign * instr_info.src1[i][offset] * instr_info.src2[i][0];
+
+            instr_info.dest.x[0] = instr_info.dest.y[0] = instr_info.dest.z[0] = dot;
+
+            break;
+        }
+
         case OpCode::DP4:
         {
+            int offset = state.address_offset[instr.common.address_register_index];
             f32 dot = 0.f;
-            f32 src1[] = SRC1;
-            f32 src2[] = SRC2;
 
-            int num_components = (instr.opcode == OpCode::DP3) ? 3 : 4;
+            for (int i = 0; i < 4; ++i)
+                dot += instr_info.sign * instr_info.src1[i][offset] * instr_info.src2[i][0];
 
-            for (int i = 0; i < num_components; ++i)
-                dot = dot + src1[i] * src2[i];
+            instr_info.dest.x[0] = instr_info.dest.y[0] = instr_info.dest.z[0] = instr_info.dest.w[0] = dot;
 
-            for (int i = 0; i < num_components; ++i) {
-                if (!swizzle.DestComponentEnabled(i))
-                    continue;
-
-                vs.regs[instr.common.dest][i] = dot;
-            }
             break;
         }
 
         case OpCode::MUL:
         {
-            f32 src1[] = SRC1;
-            f32 src2[] = SRC2;
+            int offset = state.address_offset[instr.common.address_register_index];
 
-            for (int i = 0; i < 4; ++i) {
-                if (!swizzle.DestComponentEnabled(i))
-                    continue;
+            instr_info.dest.x[0] = instr_info.sign * instr_info.src1.x[offset] * instr_info.src2.x[0];
+            instr_info.dest.y[0] = instr_info.sign * instr_info.src1.y[offset] * instr_info.src2.y[0];
+            instr_info.dest.z[0] = instr_info.sign * instr_info.src1.z[offset] * instr_info.src2.z[0];
+            instr_info.dest.w[0] = instr_info.sign * instr_info.src1.w[offset] * instr_info.src2.w[0];
 
-                vs.regs[instr.common.dest][i] = src1[i] * src2[i];
-            }
+            break;
+        }
+
+        case OpCode::SLT:
+        {
+            int offset = state.address_offset[instr.common.address_register_index];
+
+            instr_info.dest.x[0] = (instr_info.src1.x[offset] < instr_info.src2.x[0]) ? 1.f : 0.f;
+            instr_info.dest.y[0] = (instr_info.src1.y[offset] < instr_info.src2.y[0]) ? 1.f : 0.f;
+            instr_info.dest.z[0] = (instr_info.src1.z[offset] < instr_info.src2.z[0]) ? 1.f : 0.f;
+            instr_info.dest.w[0] = (instr_info.src1.w[offset] < instr_info.src2.w[0]) ? 1.f : 0.f;
+
+            break;
+        }
+
+        case OpCode::SLTI:
+        {
+            int offset = state.address_offset[instr.common.address_register_index];
+
+            instr_info.dest.x[0] = (instr_info.src1.sign * instr_info.src1.x[0] < instr_info.src2.sign * instr_info.src2.x[offset]) ? 1.f : 0.f;
+            instr_info.dest.y[0] = (instr_info.src1.sign * instr_info.src1.y[0] < instr_info.src2.sign * instr_info.src2.y[offset]) ? 1.f : 0.f;
+            instr_info.dest.z[0] = (instr_info.src1.sign * instr_info.src1.z[0] < instr_info.src2.sign * instr_info.src2.z[offset]) ? 1.f : 0.f;
+            instr_info.dest.w[0] = (instr_info.src1.sign * instr_info.src1.w[0] < instr_info.src2.sign * instr_info.src2.w[offset]) ? 1.f : 0.f;
+
+            break;
+        }
+
+        case OpCode::FLR:
+        {
+            int offset = state.address_offset[instr.common.address_register_index];
+
+            instr_info.dest.x[0] = std::floor(instr_info.src1.sign * instr_info.src1.x[offset]);
+            instr_info.dest.y[0] = std::floor(instr_info.src1.sign * instr_info.src1.y[offset]);
+            instr_info.dest.z[0] = std::floor(instr_info.src1.sign * instr_info.src1.z[offset]);
+            instr_info.dest.w[0] = std::floor(instr_info.src1.sign * instr_info.src1.w[offset]);
+
             break;
         }
 
         case OpCode::MAX:
         {
-            f32 src1[] = SRC1;
-            f32 src2[] = SRC2;
+            int offset = state.address_offset[instr.common.address_register_index];
 
-            for (int i = 0; i < 4; ++i) {
-                if (!swizzle.DestComponentEnabled(i))
-                    continue;
+            instr_info.dest.x[0] = std::max(instr_info.src1.sign * instr_info.src1.x[offset], instr_info.src2.sign * instr_info.src2.x[0]);
+            instr_info.dest.y[0] = std::max(instr_info.src1.sign * instr_info.src1.y[offset], instr_info.src2.sign * instr_info.src2.y[0]);
+            instr_info.dest.z[0] = std::max(instr_info.src1.sign * instr_info.src1.z[offset], instr_info.src2.sign * instr_info.src2.z[0]);
+            instr_info.dest.w[0] = std::max(instr_info.src1.sign * instr_info.src1.w[offset], instr_info.src2.sign * instr_info.src2.w[0]);
 
-                vs.regs[instr.common.dest][i] = std::max(src1[i], src2[i]);
-            }
+            break;
+        }
+
+        case OpCode::MIN:
+        {
+            int offset = state.address_offset[instr.common.address_register_index];
+
+            instr_info.dest.x[0] = std::min(instr_info.src1.sign * instr_info.src1.x[offset], instr_info.src2.sign * instr_info.src2.x[0]);
+            instr_info.dest.y[0] = std::min(instr_info.src1.sign * instr_info.src1.y[offset], instr_info.src2.sign * instr_info.src2.y[0]);
+            instr_info.dest.z[0] = std::min(instr_info.src1.sign * instr_info.src1.z[offset], instr_info.src2.sign * instr_info.src2.z[0]);
+            instr_info.dest.w[0] = std::min(instr_info.src1.sign * instr_info.src1.w[offset], instr_info.src2.sign * instr_info.src2.w[0]);
+
             break;
         }
 
         case OpCode::RCP:
         {
-            f32 src1[] = SRC1;
+            int offset = state.address_offset[instr.common.address_register_index];
 
-            for (int i = 0; i < 4; ++i) {
-                if (!swizzle.DestComponentEnabled(i))
-                    continue;
-
-                // TODO: Be stable against division by zero!
-                // TODO: I think this might be wrong... we should only use one component here
-                vs.regs[instr.common.dest][i] = 1.0f / src1[i];
-            }
+            // TODO: Be stable against division by zero!
+            // TODO: I think this might be wrong... we should only use one component here
+            instr_info.dest.x[0] = instr_info.src1.sign / instr_info.src1.x[offset];
+            instr_info.dest.y[0] = instr_info.src1.sign / instr_info.src1.y[offset];
+            instr_info.dest.z[0] = instr_info.src1.sign / instr_info.src1.z[offset];
+            instr_info.dest.w[0] = instr_info.src1.sign / instr_info.src1.w[offset];
 
             break;
         }
 
         case OpCode::RSQ:
         {
-            f32 src1[] = SRC1;
+            int offset = state.address_offset[instr.common.address_register_index];
 
-            for (int i = 0; i < 4; ++i) {
-                if (!swizzle.DestComponentEnabled(i))
-                    continue;
+            // TODO: Be stable against division by zero!
+            // TODO: I think this might be wrong... we should only use one component here
+            instr_info.dest.x[0] = instr_info.src1.sign / instr_info.src1.x[offset];
+            instr_info.dest.y[0] = instr_info.src1.sign / instr_info.src1.y[offset];
+            instr_info.dest.z[0] = instr_info.src1.sign / instr_info.src1.z[offset];
+            instr_info.dest.w[0] = instr_info.src1.sign / instr_info.src1.w[offset];
 
-                // TODO: Be stable against division by zero!
-                // TODO: I think this might be wrong... we should only use one component here
-                vs.regs[instr.common.dest][i] = 1.0f / sqrt(src1[i]);
-            }
             break;
         }
 
         case OpCode::MOVA:
         {
-            f32 src1[] = SRC1;
+            int offset = state.address_offset[instr.common.address_register_index];
+            const SwizzlePattern& swizzle = *(SwizzlePattern*)&swizzle_data[instr.common.operand_desc_id];
+
             for (int i = 0; i < 2; ++i) {
                 if (!swizzle.DestComponentEnabled(i))
                     continue;
 
                 // TODO: Figure out how the rounding is done on hardware
-                state.address_registers[i] = static_cast<s32>(src1[i]);
+                state.address_offset[i + 1] = static_cast<s32>(instr_info.src1.sign * instr_info.src1[i][offset]) << 2;
             }
-
             break;
         }
 
         case OpCode::MOV:
         {
-            f32 src1[] = SRC1;
+            int offset = state.address_offset[instr.common.address_register_index];
 
-            for (int i = 0; i < 4; ++i) {
-                if (!swizzle.DestComponentEnabled(i))
-                    continue;
+            instr_info.dest.x[0] = instr_info.src1.sign * instr_info.src1.x[offset];
+            instr_info.dest.y[0] = instr_info.src1.sign * instr_info.src1.y[offset];
+            instr_info.dest.z[0] = instr_info.src1.sign * instr_info.src1.z[offset];
+            instr_info.dest.w[0] = instr_info.src1.sign * instr_info.src1.w[offset];
 
-                vs.regs[instr.common.dest][i] = src1[i];
-            }
             break;
         }
 
         case OpCode::CALL:
-            call(state,
-                instr.flow_control.dest_offset,
-                instr.flow_control.num_instructions,
-                binary_offset + 1, 0, 0);
-
+            Call(state,
+                 instr.flow_control.dest_offset,
+                 instr.flow_control.num_instructions,
+                 state.pc + 1, 0, 0);
             continue;
+
+        case OpCode::CALLU:
+            if (vs.uniforms_b[instr.flow_control.bool_uniform_id]) {
+                Call(state,
+                     instr.flow_control.dest_offset,
+                     instr.flow_control.num_instructions,
+                     state.pc + 1, 0, 0);
+                continue;
+            }
+            break;
+
+        case OpCode::CALLC:
+            if (EvaluateCondition(state, instr.flow_control.refx, instr.flow_control.refy, instr.flow_control)) {
+                Call(state,
+                     instr.flow_control.dest_offset,
+                     instr.flow_control.num_instructions,
+                     state.pc + 1, 0, 0);
+                continue;
+            }
+            break;
 
         case OpCode::NOP:
             break;
@@ -475,71 +805,94 @@ VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int
 
         case OpCode::IFU:
             if (vs.uniforms_b[instr.flow_control.bool_uniform_id]) {
-                call(state,
-                    binary_offset + 1,
-                    instr.flow_control.dest_offset - binary_offset - 1,
-                    instr.flow_control.dest_offset + instr.flow_control.num_instructions, 0, 0);
+                Call(state,
+                     state.pc + 1,
+                     instr.flow_control.dest_offset - state.pc - 1,
+                     instr.flow_control.dest_offset + instr.flow_control.num_instructions, 0, 0);
+            } else {
+                Call(state,
+                     instr.flow_control.dest_offset,
+                     instr.flow_control.num_instructions,
+                     instr.flow_control.dest_offset + instr.flow_control.num_instructions, 0, 0);
             }
-            else {
-                call(state,
-                    instr.flow_control.dest_offset,
-                    instr.flow_control.num_instructions,
-                    instr.flow_control.dest_offset + instr.flow_control.num_instructions, 0, 0);
-            }
-
             continue;
 
         case OpCode::IFC:
             // TODO: Do we need to consider swizzlers here?
-
-            if (evaluate_condition(state, instr.flow_control.refx, instr.flow_control.refy, instr.flow_control)) {
-                call(state,
-                    binary_offset + 1,
-                    instr.flow_control.dest_offset - binary_offset - 1,
-                    instr.flow_control.dest_offset + instr.flow_control.num_instructions, 0, 0);
+            if (EvaluateCondition(state, instr.flow_control.refx, instr.flow_control.refy, instr.flow_control)) {
+                Call(state,
+                     state.pc + 1,
+                     instr.flow_control.dest_offset - state.pc - 1,
+                     instr.flow_control.dest_offset + instr.flow_control.num_instructions, 0, 0);
             } else {
-                call(state,
-                    instr.flow_control.dest_offset,
-                    instr.flow_control.num_instructions,
-                    instr.flow_control.dest_offset + instr.flow_control.num_instructions, 0, 0);
+                Call(state,
+                     instr.flow_control.dest_offset,
+                     instr.flow_control.num_instructions,
+                     instr.flow_control.dest_offset + instr.flow_control.num_instructions, 0, 0);
             }
+            continue;
+
+        case OpCode::LOOP:
+            state.address_offset[2] = vs.uniforms_i[instr.flow_control.int_uniform_id].y << 2;
+
+            Call(state,
+                state.pc + 1,
+                instr.flow_control.dest_offset - state.pc + 1,
+                instr.flow_control.dest_offset + 1,
+                vs.uniforms_i[instr.flow_control.int_uniform_id].x,
+                vs.uniforms_i[instr.flow_control.int_uniform_id].z);
 
             continue;
+
+        case OpCode::JMPC:
+            if (EvaluateCondition(state, instr.flow_control.refx, instr.flow_control.refy, instr.flow_control)) {
+                state.pc = instr.flow_control.dest_offset;
+                continue;
+            }
+            break;
+
+        case OpCode::JMPU:
+            if (vs.uniforms_b[instr.flow_control.bool_uniform_id]) {
+                state.pc = instr.flow_control.dest_offset;
+                continue;
+            }
+            break;
 
         case OpCode::CMP:
         case OpCode::CMP + 1:
         {
-            f32 src1[] = SRC1;
-            f32 src2[] = SRC2;
+            int offset = state.address_offset[instr.common.address_register_index];
             for (int i = 0; i < 2; ++i) {
                 // TODO: Can you restrict to one compare via dest masking?
 
                 auto compare_op = instr.common.compare_op;
                 auto op = (i == 0) ? compare_op.x.Value() : compare_op.y.Value();
+                auto src1 = instr_info.src1.sign * instr_info.src1[i][offset];
+                auto src2 = instr_info.src2.sign * instr_info.src2[i][0];
 
                 switch (op) {
                 case compare_op.Equal:
-                    state.conditional_code[i] = (src1[i] == src2[i]);
+                    state.conditional_code[i] = (src1 == src2);
                     break;
 
                 case compare_op.NotEqual:
-                    state.conditional_code[i] = (src1[i] != src2[i]);
+                    state.conditional_code[i] = (src1 != src2);
                     break;
 
                 case compare_op.LessThan:
-                    state.conditional_code[i] = (src1[i] < src2[i]);
+                    state.conditional_code[i] = (src1 < src2);
                     break;
 
                 case compare_op.LessEqual:
-                    state.conditional_code[i] = (src1[i] <= src2[i]);
+                    state.conditional_code[i] = (src1 <= src2);
                     break;
 
                 case compare_op.GreaterThan:
-                    state.conditional_code[i] = (src1[i] > src2[i]);
+                    state.conditional_code[i] = (src1 > src2);
                     break;
 
                 case compare_op.GreaterEqual:
-                    state.conditional_code[i] = (src1[i] >= src2[i]);
+                    state.conditional_code[i] = (src1 >= src2);
                     break;
 
                 default:
@@ -547,10 +900,17 @@ VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int
                     break;
                 }
             }
-
             break;
         }
 
+        case OpCode::MADI:
+        case OpCode::MADI + 1:
+        case OpCode::MADI + 2:
+        case OpCode::MADI + 3:
+        case OpCode::MADI + 4:
+        case OpCode::MADI + 5:
+        case OpCode::MADI + 6:
+        case OpCode::MADI + 7:
         case OpCode::MAD:
         case OpCode::MAD + 1:
         case OpCode::MAD + 2:
@@ -560,17 +920,10 @@ VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int
         case OpCode::MAD + 6:
         case OpCode::MAD + 7:
         {
-            f32 src1[] = SRC1_MAD;
-            f32 src2[] = SRC2_MAD;
-            f32 src3[] = SRC3_MAD;
-
-            for (int i = 0; i < 4; ++i) {
-                if (!swizzle_mad.DestComponentEnabled(i))
-                    continue;
-
-                vs.regs[instr.mad.dest][i] = src1[i] * src2[i] + src3[i];
-            }
-
+            instr_info.dest.x[0] = instr_info.sign * instr_info.src1.x[0] * instr_info.src2.x[0] + instr_info.src3.sign * instr_info.src3.x[0];
+            instr_info.dest.y[0] = instr_info.sign * instr_info.src1.y[0] * instr_info.src2.y[0] + instr_info.src3.sign * instr_info.src3.y[0];
+            instr_info.dest.z[0] = instr_info.sign * instr_info.src1.z[0] * instr_info.src2.z[0] + instr_info.src3.sign * instr_info.src3.z[0];
+            instr_info.dest.w[0] = instr_info.sign * instr_info.src1.w[0] * instr_info.src2.w[0] + instr_info.src3.sign * instr_info.src3.w[0];
             break;
         }
 
@@ -579,7 +932,7 @@ VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int
             UNIMPLEMENTED();
         }
 
-        ++state.pc;
+        state.pc += 1;
 
         if (exit_loop)
             break;
@@ -608,12 +961,6 @@ VertexShader::OutputVertex RunShader(const VertexShader::InputVertex& input, int
             }
         }
     }
-
-    //LOG_ERROR(Render_Software, "2: output vertex: pos (%.2f, %.2f, %.2f, %.2f), col(%.2f, %.2f, %.2f, %.2f), tc0(%.2f, %.2f)",
-    //    ret.pos.x.ToFloat32(), ret.pos.y.ToFloat32(), ret.pos.z.ToFloat32(), ret.pos.w.ToFloat32(),
-    //    ret.color.x.ToFloat32(), ret.color.y.ToFloat32(), ret.color.z.ToFloat32(), ret.color.w.ToFloat32(),
-    //    ret.tc0.u().ToFloat32(), ret.tc0.v().ToFloat32());
-
 
     return ret;
 }

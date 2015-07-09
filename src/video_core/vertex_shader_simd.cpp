@@ -2,7 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-#include <string>
+#include <cstring>
 #include <vector>
 
 #include <nihstro/shader_bytecode.h>
@@ -193,7 +193,7 @@ static inline bool EvaluateCondition(const CoreState& state, bool refx, bool ref
 };
 
 void InitCore(CoreState& state) {
-    memcpy(&state.uniform[0].x, g_state.vs.uniforms.f, sizeof(state.uniform));
+    std::memcpy(&state.uniform[0].x, g_state.vs.uniforms.f, sizeof(state.uniform));
 }
 
 VertexShader::OutputVertex RunShader(CoreState& state, const VertexShader::InputVertex& input, int num_attributes) {

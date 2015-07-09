@@ -5,6 +5,7 @@
 #include <boost/range/algorithm/fill.hpp>
 
 #include "common/profiler.h"
+#include "common/cpu_detect.h"
 
 #include "clipper.h"
 #include "command_processor.h"
@@ -12,6 +13,7 @@
 #include "pica.h"
 #include "primitive_assembly.h"
 #include "vertex_shader.h"
+#include "vertex_shader_simd.h"
 #include "video_core.h"
 #include "core/hle/service/gsp_gpu.h"
 #include "core/hw/gpu.h"
@@ -121,6 +123,11 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
             PrimitiveAssembler<VertexShader::OutputVertex> primitive_assembler(regs.triangle_topology.Value());
             PrimitiveAssembler<DebugUtils::GeometryDumper::Vertex> dumping_primitive_assembler(regs.triangle_topology.Value());
 
+            VertexShaderSIMD::CoreState state;
+            if (Settings::values.shader_core == Settings::OptimizedInterpreter) {
+                VertexShaderSIMD::InitCore(state);
+            }
+
             for (unsigned int index = 0; index < regs.num_vertices; ++index)
             {
                 unsigned int vertex = is_indexed ? (index_u16 ? index_address_16[index] : index_address_8[index]) : index;
@@ -190,7 +197,12 @@ static inline void WritePicaReg(u32 id, u32 value, u32 mask) {
                                                                    &geometry_dumper, _1, _2, _3));
 
                 // Send to vertex shader
-                VertexShader::OutputVertex output = VertexShader::RunShader(input, attribute_config.GetNumTotalAttributes());
+                VertexShader::OutputVertex output;
+                if (Settings::values.shader_core == Settings::OptimizedInterpreter && Common::cpu_info.bSSE4_1) {
+                    output = VertexShaderSIMD::RunShader(state, input, attribute_config.GetNumTotalAttributes());
+                } else {
+                    output = VertexShader::RunShader(input, attribute_config.GetNumTotalAttributes());
+                }
 
                 if (is_indexed) {
                     // TODO: Add processed vertex to vertex cache!

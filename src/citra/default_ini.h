@@ -42,6 +42,10 @@ gpu_refresh_rate =
 frame_skip =
 
 [Renderer]
+# Shader core to use for emulation of vertex shaders
+# 0 (default): Optimized interpreter, 1: Interpreter
+shader_core =
+
 # Whether to use software or hardware rendering.
 # 0 (default): Software, 1: Hardware
 use_hw_renderer =

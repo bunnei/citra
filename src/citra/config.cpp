@@ -69,6 +69,7 @@ void Config::ReadValues() {
     Settings::values.frame_skip = glfw_config->GetInteger("Core", "frame_skip", 0);
 
     // Renderer
+    Settings::values.shader_core = glfw_config->GetBoolean("Renderer", "shader_core", 0);
     Settings::values.use_hw_renderer = glfw_config->GetBoolean("Renderer", "use_hw_renderer", false);
 
     Settings::values.bg_red   = (float)glfw_config->GetReal("Renderer", "bg_red",   1.0);

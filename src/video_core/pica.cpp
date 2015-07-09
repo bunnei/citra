@@ -6,11 +6,16 @@
 
 #include "pica.h"
 
+#include "vertex_shader_simd.h"
+
 namespace Pica {
 
 State g_state;
 
 void Init() {
+#if _M_SSE >= 0x401
+    VertexShaderSIMD::Init();
+#endif
 }
 
 void Shutdown() {

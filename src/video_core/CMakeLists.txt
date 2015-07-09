@@ -14,6 +14,7 @@ set(SRCS
             rasterizer.cpp
             utils.cpp
             vertex_shader.cpp
+            vertex_shader_simd.cpp
             video_core.cpp
             )
 
@@ -38,6 +39,7 @@ set(HEADERS
             renderer_base.h
             utils.h
             vertex_shader.h
+            vertex_shader_simd.h
             video_core.h
             )
 

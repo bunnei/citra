@@ -8,6 +8,11 @@
 
 namespace Settings {
 
+enum ShaderCore {
+    OptimizedInterpreter,
+    Interpreter
+};
+
 struct Values {
     // Controls
     int pad_a_key;
@@ -44,6 +49,7 @@ struct Values {
     int region_value;
 
     // Renderer
+    int shader_core;
     bool use_hw_renderer;
 
     float bg_red;

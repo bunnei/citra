@@ -53,6 +53,7 @@ void Config::ReadValues() {
     qt_config->endGroup();
 
     qt_config->beginGroup("Renderer");
+    Settings::values.shader_core = qt_config->value("shader_core", 0).toInt();
     Settings::values.use_hw_renderer = qt_config->value("use_hw_renderer", false).toBool();
 
     Settings::values.bg_red   = qt_config->value("bg_red",   1.0).toFloat();
@@ -105,6 +106,7 @@ void Config::SaveValues() {
     qt_config->endGroup();
 
     qt_config->beginGroup("Renderer");
+    qt_config->setValue("shader_core", Settings::values.shader_core);
     qt_config->setValue("use_hw_renderer", Settings::values.use_hw_renderer);
 
     // Cast to double because Qt's written float values are not human-readable

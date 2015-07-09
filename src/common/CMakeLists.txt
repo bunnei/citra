@@ -33,6 +33,7 @@ set(HEADERS
             emu_window.h
             fifo_queue.h
             file_util.h
+            intrinsics.h
             key_map.h
             linear_disk_cache.h
             logging/text_formatter.h
@@ -57,6 +58,14 @@ set(HEADERS
             timer.h
             vector_math.h
             )
+
+if(_M_X86)
+    set(SRCS ${SRCS}
+             cpu_detect_x86.cpp)
+else()
+    set(SRCS ${SRCS}
+             cpu_detect_generic.cpp)
+endif()
 
 create_directory_groups(${SRCS} ${HEADERS})
 

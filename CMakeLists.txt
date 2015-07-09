@@ -71,7 +71,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^x86" OR
    ${CMAKE_SYSTEM_PROCESSOR} MATCHES "[aA][mM][dD]64" OR
    APPLE)
     set(_M_X86 1)
-    add_definitions(-D_M_X86=1 -msse2)
+    add_definitions(-D_M_X86=1)
     
     if(_ARCH_64)
         set(_M_X86_64 1)

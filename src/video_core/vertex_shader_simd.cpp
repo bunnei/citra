@@ -2,6 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <string>
 #include <vector>
 
 #include <nihstro/shader_bytecode.h>
@@ -221,7 +222,7 @@ VertexShader::OutputVertex RunShader(CoreState& state, const VertexShader::Input
     while (true) {
         if (!state.call_stack.empty()) {
             auto& top = state.call_stack.back();
-            if (&program_code[state.pc] - program_code.data() == top.final_address) {
+            if (state.pc == top.final_address) {
                 state.address_offset.raw_i.m128i_i32[3] += top.loop_increment;
 
                 if (top.repeat_counter-- == 0) {

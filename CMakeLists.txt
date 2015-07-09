@@ -64,7 +64,7 @@ endif()
 
 # Architecture detection and arch specific settings
 message(${CMAKE_SYSTEM_PROCESSOR})
-           
+
 # Platform-agnostic definition to check if we are on x86/x64
 if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^x86" OR
    ${CMAKE_SYSTEM_PROCESSOR} MATCHES "i.86" OR
@@ -72,7 +72,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^x86" OR
    APPLE)
     set(_M_X86 1)
     add_definitions(-D_M_X86=1)
-    
+
     if(_ARCH_64)
         set(_M_X86_64 1)
         add_definitions(-D_M_X86_64=1)

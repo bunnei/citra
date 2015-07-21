@@ -7,19 +7,13 @@
 
 #include <common/file_util.h>
 
-#include <nihstro/shader_bytecode.h>
-
 #include "common/profiler.h"
 
 #include "video_core/pica.h"
-#include "video_core/shader/shader_interpreter.h"
 #include "video_core/debug_utils/debug_utils.h"
 
-using nihstro::OpCode;
-using nihstro::Instruction;
-using nihstro::RegisterType;
-using nihstro::SourceRegister;
-using nihstro::SwizzlePattern;
+#include "shader_bytecode.h"
+#include "shader_interpreter.h"
 
 namespace Pica {
 

@@ -35,6 +35,7 @@ set(HEADERS
             primitive_assembly.h
             rasterizer.h
             renderer_base.h
+            shader/shader_bytecode.h
             shader/shader_interpreter.h
             utils.h
             video_core.h

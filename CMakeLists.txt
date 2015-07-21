@@ -51,6 +51,35 @@ else()
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/DEBUG /INCREMENTAL:NO /OPT:REF,ICF" CACHE STRING "" FORCE)
 endif()
 
+# Detect 64bit or 32bit
+# CMake doesn't provide a simple way to determine 32bit or 64bit
+# If we ever support a architecture that is 64bit with 32bit pointers then this'll break
+# Of course the chances of that are slim(x32?) so who cares
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(_ARCH_64 1)
+    add_definitions(-D_ARCH_64=1)
+else()
+    set(_ARCH_32 1)
+    add_definitions(-D_ARCH_32=1)
+endif()
+
+# Architecture detection and arch specific settings
+message(${CMAKE_SYSTEM_PROCESSOR})
+
+# Platform-agnostic definition to check if we are on x86/x64
+if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^x86" OR
+   ${CMAKE_SYSTEM_PROCESSOR} MATCHES "i.86" OR
+   ${CMAKE_SYSTEM_PROCESSOR} MATCHES "[aA][mM][dD]64" OR
+   APPLE)
+    set(_M_X86 1)
+    add_definitions(-D_M_X86=1)
+
+    if(_ARCH_64)
+        set(_M_X86_64 1)
+        add_definitions(-D_M_X86_64=1)
+    endif()
+endif()
+
 add_definitions(-DSINGLETHREADED)
 # CMake seems to only define _DEBUG on Windows
 set_property(DIRECTORY APPEND PROPERTY

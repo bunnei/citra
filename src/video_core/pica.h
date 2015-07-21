@@ -1083,6 +1083,7 @@ private:
     // TODO: Perform proper arithmetic on this!
     float value;
 };
+static_assert(sizeof(float24) == sizeof(float), "Shader JIT assumes float24 is 32-bit packed");
 
 /// Struct used to describe current Pica state
 struct State {

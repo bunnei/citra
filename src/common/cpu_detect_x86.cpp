@@ -7,6 +7,7 @@
 
 #include "common_types.h"
 #include "cpu_detect.h"
+#include "hash.h"
 
 #ifndef _WIN32
 
@@ -56,6 +57,7 @@ CPUInfo cpu_info;
 
 CPUInfo::CPUInfo() {
     Detect();
+    SetHash64Function();
 }
 
 // Detects the various CPU features

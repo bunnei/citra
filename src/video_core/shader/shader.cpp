@@ -2,7 +2,11 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-#include "common/logging/log.h"
+#include <memory>
+#include <unordered_map>
+
+#include "common/hash.h"
+#include "common/make_unique.h"
 #include "common/profiler.h"
 
 #include "video_core/debug_utils/debug_utils.h"
@@ -10,13 +14,30 @@
 
 #include "shader.h"
 #include "shader_interpreter.h"
+#include "shader_jit.h"
 
 namespace Pica {
 
 namespace Shader {
 
+static std::unordered_map<u64, std::unique_ptr<JitShader>> shader_map;
+static JitCompiler jit;
+static JitShader* jit_shader;
+
 void Setup(UnitState& state) {
-    // TODO(bunnei): This will be used by the JIT in a subsequent commit
+    const u64 cache_key = Common::GetHash64((const u8*)&g_state.vs.program_code, 8192, 1024) ^
+            (static_cast<u64>(g_state.regs.vs.main_offset) << 32);
+
+    auto iter = shader_map.find(cache_key);
+
+    if (iter != shader_map.end()) {
+        jit_shader = iter->second.get();
+    } else {
+        std::unique_ptr<JitShader> new_shader = Common::make_unique<JitShader>();
+        jit_shader = new_shader.get();
+        new_shader->DoJit(jit);
+        shader_map.emplace(cache_key, std::move(new_shader));
+    }
 }
 
 static Common::Profiling::TimingCategory shader_category("Vertex Shader");

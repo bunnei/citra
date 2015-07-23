@@ -644,6 +644,8 @@ static_assert(sizeof(Instruction) == 0x4, "Incorrect structure size");
 static_assert(std::is_standard_layout<Instruction>::value, "Structure does not have standard layout");
 
 union SwizzlePattern {
+    static const unsigned NO_SOURCE_SWIZZLE = 0x1b; // No source swizzling is performed
+
     SwizzlePattern& operator =(const SwizzlePattern& instr) {
         hex = instr.hex;
         return *this;

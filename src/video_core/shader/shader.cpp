@@ -9,6 +9,8 @@
 #include "common/make_unique.h"
 #include "common/profiler.h"
 
+#include "core/settings.h"
+
 #include "video_core/debug_utils/debug_utils.h"
 #include "video_core/pica.h"
 
@@ -75,7 +77,10 @@ OutputVertex Run(UnitState& state, const InputVertex& input, int num_attributes)
     state.conditional_code[0] = false;
     state.conditional_code[1] = false;
 
-    RunInterpreter(state);
+    if (Settings::values.use_shader_jit)
+        jit_shader->Run(state);
+    else
+        RunInterpreter(state);
 
 #if PICA_DUMP_SHADERS
     DebugUtils::DumpShader(setup.program_code.data(), state.debug.max_offset, setup.swizzle_data.data(),

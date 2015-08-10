@@ -21,7 +21,7 @@
 #include "common_types.h"
 #include "code_block.h"
 
-#if defined(_M_X64) && !defined(_ARCH_64)
+#if defined(_M_X86_64) && !defined(_ARCH_64)
 #define _ARCH_64
 #endif
 
@@ -1047,7 +1047,7 @@ public:
     void ABI_EmitPrologue(int maxCallParams);
     void ABI_EmitEpilogue(int maxCallParams);
 
-    #ifdef _M_IX86
+    #ifdef _M_X86
     inline int ABI_GetNumXMMRegs() { return 8; }
     #else
     inline int ABI_GetNumXMMRegs() { return 16; }

@@ -25,7 +25,7 @@ using namespace Gen;
 // Sets up a __cdecl function.
 void XEmitter::ABI_EmitPrologue(int maxCallParams)
 {
-#ifdef _M_IX86
+#ifdef _M_X86
     // Don't really need to do anything
 #elif defined(_M_X64)
 #if _WIN32
@@ -41,7 +41,7 @@ void XEmitter::ABI_EmitPrologue(int maxCallParams)
 
 void XEmitter::ABI_EmitEpilogue(int maxCallParams)
 {
-#ifdef _M_IX86
+#ifdef _M_X86
     RET();
 #elif defined(_M_X64)
 #ifdef _WIN32
@@ -56,7 +56,7 @@ void XEmitter::ABI_EmitEpilogue(int maxCallParams)
 #endif
 }
 
-#ifdef _M_IX86 // All32
+#ifdef _M_X86 // All32
 
 // Shared code between Win32 and Unix32
 void XEmitter::ABI_CallFunction(const void *func) {

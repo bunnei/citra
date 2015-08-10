@@ -2,6 +2,8 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <smmintrin.h>
+
 #include "common/cpu_detect.h"
 #include "common/x64_emitter.h"
 
@@ -176,7 +178,7 @@ void JitCompiler::Compile_SwizzleSrc(Instruction instr, unsigned src_num, Source
     SwizzlePattern swiz = { g_state.vs.swizzle_data[operand_desc_id] };
 
     // Generate instructions for source register swizzling as needed
-    if (swiz.GetSelectorSrc(src_num) != SwizzlePattern::NO_SOURCE_SWIZZLE) {
+    if (swiz.GetSelectorSrc(src_num) != 0x1b) {
         // Selector component order needs to be reversed for the SHUFPS instruction
         u8 sel = swiz.GetSelectorSrc(src_num);
         sel = ((sel & 0xc0) >> 6) | ((sel & 3) << 6) | ((sel & 0xc) << 2) | ((sel & 0x30) >> 2);

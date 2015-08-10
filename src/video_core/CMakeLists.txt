@@ -45,7 +45,7 @@ set(HEADERS
             video_core.h
             )
 
-if(_M_X86)
+if(_M_X86_64)
     set(SRCS ${SRCS}
             shader/shader_jit_x64.cpp)
 else()

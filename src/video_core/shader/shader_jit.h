@@ -4,7 +4,7 @@
 
 #pragma once
 
-#if defined(_M_X64)
+#if defined(_M_X86_64)
 #include "common/x64_emitter.h"
 #else
 #include "common/fake_emitter.h"
@@ -21,10 +21,10 @@ namespace Shader {
 
 using CompiledShader = void(void* state);
 
-#if defined(_M_X64)
+#if defined(_M_X86_64)
 class JitCompiler : public Gen::XCodeBlock {
 #else
-class Jit : public FakeGen::FakeXCodeBlock {
+class JitCompiler : public FakeGen::FakeXCodeBlock {
 #endif
 public:
     JitCompiler();
@@ -60,7 +60,7 @@ private:
     void Compile_Block(unsigned stop);
     void Compile_NextInstr(unsigned* offset);
 
-#if defined(_M_X64)
+#if defined(_M_X86_64)
     void Compile_SwizzleSrc(Instruction instr, unsigned src_num, SourceRegister src_reg, Gen::X64Reg dest);
     void Compile_DestEnable(Instruction instr, Gen::X64Reg dest);
 

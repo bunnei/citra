@@ -106,10 +106,10 @@ struct UnitState {
     static size_t InputOffset(const SourceRegister& reg) {
         switch (reg.GetRegisterType()) {
         case RegisterType::Input:
-            return offsetof(UnitState, input_registers[reg.GetIndex()]);
+            return offsetof(UnitState, input_registers[0]) + reg.GetIndex()*sizeof(input_registers[0]);
 
         case RegisterType::Temporary:
-            return offsetof(UnitState, temporary_registers[reg.GetIndex()]);
+            return offsetof(UnitState, temporary_registers[0]) + reg.GetIndex()*sizeof(temporary_registers[0]);
 
         default:
             UNREACHABLE();
@@ -120,10 +120,10 @@ struct UnitState {
     static size_t OutputOffset(const DestRegister& reg) {
         switch (reg.GetRegisterType()) {
         case RegisterType::Output:
-            return offsetof(UnitState, output_registers[reg.GetIndex()]);
+            return offsetof(UnitState, output_registers[0]) + reg.GetIndex()*sizeof(output_registers[0]);
 
         case RegisterType::Temporary:
-            return offsetof(UnitState, temporary_registers[reg.GetIndex()]);
+            return offsetof(UnitState, temporary_registers[0]) + reg.GetIndex()*sizeof(temporary_registers[0]);
 
         default:
             UNREACHABLE();

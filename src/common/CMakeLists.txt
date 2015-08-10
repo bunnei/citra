@@ -61,7 +61,7 @@ set(HEADERS
             vector_math.h
             )
 
-if(_M_X86)
+if(_M_X86_64)
     set(SRCS ${SRCS}
             cpu_detect_x86.cpp
             x64_emitter.cpp)

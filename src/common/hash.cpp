@@ -4,7 +4,11 @@
 
 #include <algorithm>
 
+#include <string.h>
+#include <smmintrin.h>
+
 #include "common_types.h"
+#include "common_funcs.h"
 #include "cpu_detect.h"
 #include "hash.h"
 

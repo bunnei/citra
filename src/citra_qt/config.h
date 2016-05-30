@@ -5,6 +5,10 @@
 #pragma once
 
 #include <string>
+#include "core/settings.h"
+#include <QSettings>
+#include <QString>
+#include <QStringList>
 
 class QSettings;
 
@@ -21,3 +25,4 @@ public:
     void Reload();
     void Save();
 };
+extern const std::array<QVariant, Settings::NativeInput::NUM_INPUTS> defaults;

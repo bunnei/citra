@@ -2,15 +2,12 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-#include <QSettings>
-#include <QString>
-#include <QStringList>
+
 
 #include "citra_qt/config.h"
 #include "citra_qt/ui_settings.h"
 
 #include "common/file_util.h"
-#include "core/settings.h"
 
 Config::Config() {
     // TODO: Don't hardcode the path; let the frontend decide where to put the config files.
@@ -21,7 +18,7 @@ Config::Config() {
     Reload();
 }
 
-static const std::array<QVariant, Settings::NativeInput::NUM_INPUTS> defaults = {
+const std::array<QVariant, Settings::NativeInput::NUM_INPUTS> defaults = {
     // directly mapped keys
     Qt::Key_A, Qt::Key_S, Qt::Key_Z, Qt::Key_X,
     Qt::Key_Q, Qt::Key_W, Qt::Key_1, Qt::Key_2,

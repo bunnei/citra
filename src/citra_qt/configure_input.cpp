@@ -1,3 +1,6 @@
+// Copyright 2016 Citra Emulator Project
+// Licensed under GPLv2 or any later version
+// Refer to the license.txt file included.
 #include "configure_input.h"
 
 ConfigureInput::ConfigureInput(QWidget *parent) :
@@ -79,7 +82,7 @@ void ConfigureInput::setConfiguration()
 ///Handle key press event for input tab when a button is 'waiting'.
 void ConfigureInput::keyPressEvent(QKeyEvent *event)
 {
-    if (changingButton != NULL && event->key() > 0)
+    if (changingButton != nullptr && event->key() > 0)
     {
         keysPressed.push_back(event->key());
 
@@ -114,7 +117,7 @@ void ConfigureInput::SetKey()
     keysPressed.clear();
     releaseKeyboard();
     releaseMouse();
-    changingButton = NULL;
+    changingButton = nullptr;
 }
 
 ///Convert key ASCII value to its' letter/name

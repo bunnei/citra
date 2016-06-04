@@ -32,7 +32,7 @@ private:
     std::unique_ptr<Ui::ConfigureInput> ui;
     std::map<Settings::NativeInput::Values, QPushButton*> input_mapping;
     std::vector<int> keysPressed;
-    QPushButton* changingButton = NULL; // button currently waiting for key press.
+    QPushButton* changingButton = nullptr; /// button currently waiting for key press.
 
     void HandleClick();
     void setConfiguration();

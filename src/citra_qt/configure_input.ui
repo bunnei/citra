@@ -1,0 +1,975 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+  <class>ConfigureInput</class>
+  <widget class="QWidget" name="ConfigureInput">
+    <property name="geometry">
+      <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>390</width>
+        <height>457</height>
+      </rect>
+    </property>
+    <property name="windowTitle">
+      <string>ConfigureInput</string>
+    </property>
+    <widget class="QGroupBox" name="faceButtons">
+      <property name="geometry">
+        <rect>
+          <x>10</x>
+          <y>0</y>
+          <width>181</width>
+          <height>130</height>
+        </rect>
+      </property>
+      <property name="title">
+        <string>Face Buttons</string>
+      </property>
+      <property name="flat">
+        <bool>false</bool>
+      </property>
+      <property name="checkable">
+        <bool>false</bool>
+      </property>
+      <widget class="QWidget" name="widget" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>A:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnFaceA">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_2" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_2">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>B:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnFaceB">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_3" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_3">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>X:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnFaceX">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_4" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_4">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Y:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnFaceY">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+    </widget>
+    <widget class="QGroupBox" name="faceButtons_2">
+      <property name="geometry">
+        <rect>
+          <x>200</x>
+          <y>0</y>
+          <width>181</width>
+          <height>130</height>
+        </rect>
+      </property>
+      <property name="title">
+        <string>Directional Pad</string>
+      </property>
+      <property name="flat">
+        <bool>false</bool>
+      </property>
+      <property name="checkable">
+        <bool>false</bool>
+      </property>
+      <widget class="QWidget" name="widget_5" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_5">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Up:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnDirUp">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_8" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_8">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Left:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnDirLeft">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_7" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_7">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Right:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnDirRight">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_6" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_6">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Down:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnDirDown">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+    </widget>
+    <widget class="QGroupBox" name="faceButtons_3">
+      <property name="geometry">
+        <rect>
+          <x>10</x>
+          <y>140</y>
+          <width>181</width>
+          <height>130</height>
+        </rect>
+      </property>
+      <property name="title">
+        <string>Shoulder Buttons</string>
+      </property>
+      <property name="flat">
+        <bool>false</bool>
+      </property>
+      <property name="checkable">
+        <bool>false</bool>
+      </property>
+      <widget class="QWidget" name="widget_9" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_9">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>L:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnShdrL">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_10" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_10">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>ZR:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnShdrZR">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_11" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_11">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>R:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnShdrR">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_12" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_12">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>ZL:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnShdrZL">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+    </widget>
+    <widget class="QGroupBox" name="faceButtons_4">
+      <property name="geometry">
+        <rect>
+          <x>200</x>
+          <y>140</y>
+          <width>181</width>
+          <height>130</height>
+        </rect>
+      </property>
+      <property name="title">
+        <string>Circle Pad</string>
+      </property>
+      <property name="flat">
+        <bool>false</bool>
+      </property>
+      <property name="checkable">
+        <bool>false</bool>
+      </property>
+      <widget class="QWidget" name="widget_13" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_13">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Left:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnCircleLeft">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_14" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_14">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Down:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnCircleDown">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_15" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_15">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Right:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnCircleRight">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_16" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_16">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Up:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnCircleUp">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+    </widget>
+    <widget class="QGroupBox" name="faceButtons_5">
+      <property name="geometry">
+        <rect>
+          <x>10</x>
+          <y>280</y>
+          <width>181</width>
+          <height>130</height>
+        </rect>
+      </property>
+      <property name="title">
+        <string>C-Stick</string>
+      </property>
+      <property name="flat">
+        <bool>false</bool>
+      </property>
+      <property name="checkable">
+        <bool>false</bool>
+      </property>
+      <widget class="QWidget" name="widget_17" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_17">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Left:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnStickLeft">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_18" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_18">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Down:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnStickDown">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_19" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_19">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Right:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnStickRight">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_20" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_20">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Up:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnStickUp">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+    </widget>
+    <widget class="QGroupBox" name="faceButtons_6">
+      <property name="geometry">
+        <rect>
+          <x>200</x>
+          <y>280</y>
+          <width>181</width>
+          <height>130</height>
+        </rect>
+      </property>
+      <property name="title">
+        <string>System Buttons</string>
+      </property>
+      <property name="flat">
+        <bool>false</bool>
+      </property>
+      <property name="checkable">
+        <bool>false</bool>
+      </property>
+      <widget class="QWidget" name="widget_21" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_21">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Start:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnStart">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_23" native="true">
+        <property name="geometry">
+          <rect>
+            <x>100</x>
+            <y>20</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_23">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Select:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnSelect">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+      <widget class="QWidget" name="widget_24" native="true">
+        <property name="geometry">
+          <rect>
+            <x>10</x>
+            <y>70</y>
+            <width>71</width>
+            <height>50</height>
+          </rect>
+        </property>
+        <widget class="QLabel" name="label_24">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>51</width>
+              <height>16</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string>Home:</string>
+          </property>
+        </widget>
+        <widget class="QPushButton" name="btnHome">
+          <property name="geometry">
+            <rect>
+              <x>0</x>
+              <y>20</y>
+              <width>71</width>
+              <height>26</height>
+            </rect>
+          </property>
+          <property name="text">
+            <string />
+          </property>
+        </widget>
+      </widget>
+    </widget>
+    <widget class="QPushButton" name="btnRestoreDefaults">
+      <property name="geometry">
+        <rect>
+          <x>270</x>
+          <y>420</y>
+          <width>110</width>
+          <height>28</height>
+        </rect>
+      </property>
+      <property name="text">
+        <string>Restore Defaults</string>
+      </property>
+    </widget>
+  </widget>
+  <layoutdefault spacing="6" margin="11" />
+  <resources />
+  <connections />
+</ui>

@@ -118,20 +118,19 @@ void GameList::LoadInterfaceLayout()
     item_model->sort(header->sortIndicatorSection(), header->sortIndicatorOrder());
 }
 
-void GameListWorker::AddFstEntriesToGameList(const std::string& dir_path, bool deep_scan)
+void GameListWorker::AddFstEntriesToGameList(const std::string& dir_path, unsigned int recursion)
 {
     const auto callback = [&](unsigned* num_entries_out,
                               const std::string& directory,
-                              const std::string& virtual_name) -> bool {
+                              const std::string& virtual_name,
+                              unsigned int recursion) -> bool {
 
         std::string physical_name = directory + DIR_SEP + virtual_name;
 
         if (stop_processing)
             return false; // Breaks the callback loop.
 
-        if (deep_scan && FileUtil::IsDirectory(physical_name)) {
-            AddFstEntriesToGameList(physical_name, true);
-        } else {
+        if (!FileUtil::IsDirectory(physical_name)) {
             std::unique_ptr<Loader::AppLoader> loader = Loader::GetLoader(physical_name);
             if (!loader)
                 return true;
@@ -144,6 +143,8 @@ void GameListWorker::AddFstEntriesToGameList(const std::string& dir_path, bool d
                 new GameListItem(QString::fromStdString(Loader::GetFileTypeString(loader->GetFileType()))),
                 new GameListItemSize(FileUtil::GetSize(physical_name)),
             });
+        } else if (recursion > 0) {
+            AddFstEntriesToGameList(physical_name, recursion - 1);
         }
 
         return true;
@@ -155,7 +156,7 @@ void GameListWorker::AddFstEntriesToGameList(const std::string& dir_path, bool d
 void GameListWorker::run()
 {
     stop_processing = false;
-    AddFstEntriesToGameList(dir_path.toStdString(), deep_scan);
+    AddFstEntriesToGameList(dir_path.toStdString(), deep_scan ? 256 : 0);
     emit Finished();
 }
 

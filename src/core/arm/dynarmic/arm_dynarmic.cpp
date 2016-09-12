@@ -44,7 +44,7 @@ static Dynarmic::UserCallbacks GetUserCallbacks(ARMul_State* interpeter_state) {
     Dynarmic::UserCallbacks user_callbacks{};
     user_callbacks.InterpreterFallback = &InterpreterFallback;
     user_callbacks.user_arg = static_cast<void*>(interpeter_state);
-    user_callbacks.CallSVC = (bool(*)(u32)) &SVC::CallSVC;
+    user_callbacks.CallSVC = &SVC::CallSVC;
     user_callbacks.IsReadOnlyMemory = &IsReadOnlyMemory;
     user_callbacks.MemoryRead8 = &Memory::Read8;
     user_callbacks.MemoryRead16 = &Memory::Read16;

@@ -9,6 +9,7 @@
 #include "common/emu_window.h"
 
 struct SDL_Window;
+struct SDL_Keysym;
 
 class EmuWindow_SDL2 : public EmuWindow {
 public:
@@ -30,12 +31,9 @@ public:
     /// Whether the window is still open, and a close request hasn't yet been sent
     bool IsOpen() const;
 
-    /// Load keymap from configuration
-    void ReloadSetKeymaps() override;
-
 private:
     /// Called by PollEvents when a key is pressed or released.
-    void OnKeyEvent(int key, u8 state);
+    void OnKeyEvent(SDL_Keysym key, u8 state);
 
     /// Called by PollEvents when the mouse moves.
     void OnMouseMotion(s32 x, s32 y);

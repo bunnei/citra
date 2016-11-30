@@ -12,6 +12,8 @@
 #include "core/hle/service/hid/hid_spvr.h"
 #include "core/hle/service/hid/hid_user.h"
 
+#include "input_core/input_core.h"
+
 #include "core/core_timing.h"
 #include "core/hle/kernel/event.h"
 #include "core/hle/kernel/shared_memory.h"
@@ -74,11 +76,10 @@ void Update() {
         return;
     }
 
-    PadState state = VideoCore::g_emu_window->GetPadState();
-
+    PadState state = InputCore::GetPadState();
     // Get current circle pad position and update circle pad direction
     s16 circle_pad_x, circle_pad_y;
-    std::tie(circle_pad_x, circle_pad_y) = VideoCore::g_emu_window->GetCirclePadState();
+    std::tie(circle_pad_x, circle_pad_y) = InputCore::GetCirclePad();
     state.hex |= GetCirclePadDirectionState(circle_pad_x, circle_pad_y).hex;
 
     mem->pad.current_state.hex = state.hex;
@@ -115,7 +116,7 @@ void Update() {
     TouchDataEntry& touch_entry = mem->touch.entries[mem->touch.index];
     bool pressed = false;
 
-    std::tie(touch_entry.x, touch_entry.y, pressed) = VideoCore::g_emu_window->GetTouchState();
+    std::tie(touch_entry.x, touch_entry.y, pressed) = InputCore::GetTouchState();
     touch_entry.valid.Assign(pressed ? 1 : 0);
 
     // TODO(bunnei): We're not doing anything with offset 0xA8 + 0x18 of HID SharedMemory, which

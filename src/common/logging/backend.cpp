@@ -66,7 +66,8 @@ namespace Log {
         CLS(Audio) \
         SUB(Audio, DSP) \
         SUB(Audio, Sink) \
-        CLS(Loader)
+        CLS(Loader) \
+        CLS(Input)
 
 // GetClassName is a macro defined by Windows.h, grrr...
 const char* GetLogClassName(Class log_class) {

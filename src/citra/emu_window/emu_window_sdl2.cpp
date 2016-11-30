@@ -11,13 +11,15 @@
 
 #include <glad/glad.h>
 
-#include "common/key_map.h"
 #include "common/logging/log.h"
 #include "common/scm_rev.h"
 #include "common/string_util.h"
 
 #include "core/settings.h"
 #include "core/hle/service/hid/hid.h"
+
+#include "input_core/input_core.h"
+#include "input_core/devices/keyboard.h"
 
 #include "citra/emu_window/emu_window_sdl2.h"
 
@@ -38,11 +40,14 @@ void EmuWindow_SDL2::OnMouseButton(u32 button, u8 state, s32 x, s32 y) {
     }
 }
 
-void EmuWindow_SDL2::OnKeyEvent(int key, u8 state) {
+void EmuWindow_SDL2::OnKeyEvent(SDL_Keysym key, u8 state) {
+    auto keyboard = InputCore::GetKeyboard();
+    KeyboardKey param = KeyboardKey(key.sym, SDL_GetKeyName(key.scancode));
+
     if (state == SDL_PRESSED) {
-        KeyMap::PressKey(*this, { key, keyboard_id });
+        keyboard->KeyPressed(param);
     } else if (state == SDL_RELEASED) {
-        KeyMap::ReleaseKey(*this, { key, keyboard_id });
+        keyboard->KeyReleased(param);
     }
 }
 
@@ -59,9 +64,7 @@ void EmuWindow_SDL2::OnResize() {
 }
 
 EmuWindow_SDL2::EmuWindow_SDL2() {
-    keyboard_id = KeyMap::NewDeviceId();
-
-    ReloadSetKeymaps();
+    keyboard_id = 0;
 
     SDL_SetMainReady();
 
@@ -144,7 +147,7 @@ void EmuWindow_SDL2::PollEvents() {
             break;
         case SDL_KEYDOWN:
         case SDL_KEYUP:
-            OnKeyEvent(static_cast<int>(event.key.keysym.scancode), event.key.state);
+            OnKeyEvent(event.key.keysym, event.key.state);
             break;
         case SDL_MOUSEMOTION:
             OnMouseMotion(event.motion.x, event.motion.y);
@@ -166,13 +169,6 @@ void EmuWindow_SDL2::MakeCurrent() {
 
 void EmuWindow_SDL2::DoneCurrent() {
     SDL_GL_MakeCurrent(render_window, nullptr);
-}
-
-void EmuWindow_SDL2::ReloadSetKeymaps() {
-    KeyMap::ClearKeyMapping(keyboard_id);
-    for (int i = 0; i < Settings::NativeInput::NUM_INPUTS; ++i) {
-        KeyMap::SetKeyMapping({ Settings::values.input_mappings[Settings::NativeInput::All[i]], keyboard_id }, KeyMap::mapping_targets[i]);
-    }
 }
 
 void EmuWindow_SDL2::OnMinimalClientAreaChangeRequest(const std::pair<unsigned, unsigned>& minimal_size) {

@@ -34,7 +34,7 @@ pad_circle_right =
 pad_circle_modifier =
 
 # The applied modifier scale to circle pad.
-# Must be in range of 0.0-1.0. Defaults to 0.5
+# Must be in range of 0.0-1.0. Defaults to 0.4
 pad_circle_modifier_scale =
 
 [Core]

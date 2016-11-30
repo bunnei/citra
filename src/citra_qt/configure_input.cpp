@@ -1,18 +1,22 @@
-﻿// Copyright 2016 Citra Emulator Project
+// Copyright 2016 Citra Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-#include <memory>
 #include <utility>
-#include <QTimer>
 
 #include "citra_qt/configure_input.h"
+#include "citra_qt/keybinding_names.h"
+#include "common/string_util.h"
+
+#include "input_core/input_core.h"
+#include "input_core/devices/keyboard.h"
+
 
 ConfigureInput::ConfigureInput(QWidget* parent) : QWidget(parent), ui(std::make_unique<Ui::ConfigureInput>()) {
     ui->setupUi(this);
 
     // Initialize mapping of input enum to UI button.
-    input_mapping = {
+    qt_buttons = {
         { std::make_pair(Settings::NativeInput::Values::A, ui->buttonA) },
         { std::make_pair(Settings::NativeInput::Values::B, ui->buttonB) },
         { std::make_pair(Settings::NativeInput::Values::X, ui->buttonX) },
@@ -35,19 +39,18 @@ ConfigureInput::ConfigureInput(QWidget* parent) : QWidget(parent), ui(std::make_
         { std::make_pair(Settings::NativeInput::Values::CIRCLE_UP, ui->buttonCircleUp) },
         { std::make_pair(Settings::NativeInput::Values::CIRCLE_DOWN, ui->buttonCircleDown) },
         { std::make_pair(Settings::NativeInput::Values::CIRCLE_LEFT, ui->buttonCircleLeft) },
-        { std::make_pair(Settings::NativeInput::Values::CIRCLE_RIGHT, ui->buttonCircleRight) },
-        { std::make_pair(Settings::NativeInput::Values::CIRCLE_MODIFIER, ui->buttonCircleMod) },
+        { std::make_pair(Settings::NativeInput::Values::CIRCLE_RIGHT, ui->buttonCircleRight) }
     };
 
     // Attach handle click method to each button click.
-    for (const auto& entry : input_mapping) {
+    for (const auto& entry : qt_buttons) {
         connect(entry.second, SIGNAL(released()), this, SLOT(handleClick()));
     }
+    connect(ui->buttonCircleMod, SIGNAL(released()), this, SLOT(handleClick()));
     connect(ui->buttonRestoreDefaults, SIGNAL(released()), this, SLOT(restoreDefaults()));
+
     setFocusPolicy(Qt::ClickFocus);
-    timer = new QTimer(this);
-    timer->setSingleShot(true);
-    connect(timer, &QTimer::timeout, this, [&]() { key_pressed = Qt::Key_Escape; setKey(); });
+
     this->setConfiguration();
 }
 
@@ -59,22 +62,12 @@ void ConfigureInput::handleClick() {
     grabKeyboard();
     grabMouse();
     changing_button = sender;
-    timer->start(5000); //Cancel after 5 seconds
-}
+    auto update = []() {
+        QCoreApplication::processEvents();
+    };
+    auto input_device = InputCore::DetectInput(5000, update);
 
-void ConfigureInput::applyConfiguration() {
-    for (int i = 0; i < Settings::NativeInput::NUM_INPUTS; ++i) {
-        int value = getKeyValue(input_mapping[Settings::NativeInput::Values(i)]->text());
-        Settings::values.input_mappings[Settings::NativeInput::All[i]] = value;
-    }
-    Settings::Apply();
-}
-
-void ConfigureInput::setConfiguration() {
-    for (int i = 0; i < Settings::NativeInput::NUM_INPUTS; ++i) {
-        QString keyValue = getKeyName(Settings::values.input_mappings[i]);
-        input_mapping[Settings::NativeInput::Values(i)]->setText(keyValue);
-    }
+    setKey(input_device);
 }
 
 void ConfigureInput::keyPressEvent(QKeyEvent* event) {
@@ -82,26 +75,57 @@ void ConfigureInput::keyPressEvent(QKeyEvent* event) {
         return;
     if (!event || event->key() == Qt::Key_unknown)
         return;
-    key_pressed = event->key();
-    timer->stop();
-    setKey();
+
+    auto keyboard = InputCore::GetKeyboard();
+    KeyboardKey param = KeyboardKey(event->key(), QKeySequence(event->key()).toString().toStdString());
+    keyboard->KeyPressed(param);
 }
 
-void ConfigureInput::setKey() {
-    const QString key_value = getKeyName(key_pressed);
-    if (key_pressed == Qt::Key_Escape)
+void ConfigureInput::applyConfiguration() {
+    for (int i = 0; i < Settings::NativeInput::NUM_INPUTS; ++i) {
+        Settings::values.input_mappings[Settings::NativeInput::All[i]] = button_mapping[qt_buttons[Settings::NativeInput::Values(i)]];
+    }
+    Settings::values.pad_circle_modifier = button_mapping[ui->buttonCircleMod];
+    Settings::Apply();
+}
+
+void ConfigureInput::setConfiguration() {
+    for (int i = 0; i < Settings::NativeInput::NUM_INPUTS; ++i) {
+        Settings::InputDeviceMapping mapping = Settings::values.input_mappings[i];
+        button_mapping[qt_buttons[Settings::NativeInput::Values(i)]] = mapping;
+
+        qt_buttons[Settings::NativeInput::Values(i)]->setText(getKeyName(mapping));
+    }
+    button_mapping[ui->buttonCircleMod] = Settings::values.pad_circle_modifier;
+    ui->buttonCircleMod->setText(getKeyName(Settings::values.pad_circle_modifier));
+}
+
+void ConfigureInput::setKey(Settings::InputDeviceMapping keyPressed) {
+    if (keyPressed.key == "" || keyPressed.key == std::to_string(Qt::Key_Escape))
         changing_button->setText(previous_mapping);
-    else
-        changing_button->setText(key_value);
-    removeDuplicates(key_value);
-    key_pressed = Qt::Key_unknown;
+    else {
+        changing_button->setText(getKeyName(keyPressed));
+        button_mapping[changing_button] = keyPressed;
+        removeDuplicates(keyPressed);
+    }
     releaseKeyboard();
     releaseMouse();
     changing_button = nullptr;
     previous_mapping = nullptr;
 }
 
-QString ConfigureInput::getKeyName(int key_code) const {
+QString ConfigureInput::getKeyName(Settings::InputDeviceMapping mapping) const {
+    if (mapping.key.empty())
+        return "";
+    int key_code;
+    if (!Common::TryParse(mapping.key, &key_code))
+        key_code = -1;
+    if (mapping.device == Settings::Device::Gamepad) {
+        if (KeyBindingNames::sdl_gamepad_names.size() > key_code && key_code >= 0)
+            return KeyBindingNames::sdl_gamepad_names[key_code];
+        else
+            return "";
+    }
     if (key_code == Qt::Key_Shift)
         return tr("Shift");
     if (key_code == Qt::Key_Control)
@@ -110,40 +134,30 @@ QString ConfigureInput::getKeyName(int key_code) const {
         return tr("Alt");
     if (key_code == Qt::Key_Meta)
         return "";
-    if (key_code == -1)
+    if (key_code < 0)
         return "";
 
     return QKeySequence(key_code).toString();
 }
 
-Qt::Key ConfigureInput::getKeyValue(const QString& text) const {
-    if (text == "Shift")
-        return Qt::Key_Shift;
-    if (text == "Ctrl")
-        return Qt::Key_Control;
-    if (text == "Alt")
-        return Qt::Key_Alt;
-    if (text == "Meta")
-        return Qt::Key_unknown;
-    if (text == "")
-        return Qt::Key_unknown;
-
-    return Qt::Key(QKeySequence(text)[0]);
-}
-
-void ConfigureInput::removeDuplicates(const QString& newValue) {
-    for (int i = 0; i < Settings::NativeInput::NUM_INPUTS; ++i) {
-        if (changing_button != input_mapping[Settings::NativeInput::Values(i)]) {
-            const QString oldValue = input_mapping[Settings::NativeInput::Values(i)]->text();
-            if (newValue == oldValue)
-                input_mapping[Settings::NativeInput::Values(i)]->setText("");
+void ConfigureInput::removeDuplicates(const Settings::InputDeviceMapping newValue) {
+    for (auto& entry : button_mapping) {
+        if (changing_button != entry.first) {
+            if (newValue == entry.second && newValue.key == entry.second.key) {
+                entry.first->setText("");
+                entry.second = Settings::InputDeviceMapping();
+            }
         }
     }
 }
 
 void ConfigureInput::restoreDefaults() {
     for (int i = 0; i < Settings::NativeInput::NUM_INPUTS; ++i) {
-        const QString keyValue = getKeyName(Config::defaults[i].toInt());
-        input_mapping[Settings::NativeInput::Values(i)]->setText(keyValue);
+        Settings::InputDeviceMapping mapping = Settings::InputDeviceMapping(Config::defaults[i].toInt());
+        button_mapping[qt_buttons[Settings::NativeInput::Values(i)]] = mapping;
+        const QString keyValue = getKeyName(Settings::InputDeviceMapping(Config::defaults[i].toInt()));
+        qt_buttons[Settings::NativeInput::Values(i)]->setText(keyValue);
     }
+    button_mapping[ui->buttonCircleMod] = Settings::InputDeviceMapping(Qt::Key_F);
+    ui->buttonCircleMod->setText(getKeyName(Settings::InputDeviceMapping(Qt::Key_F)));
 }

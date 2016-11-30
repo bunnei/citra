@@ -52,17 +52,17 @@ static const std::array<int, Settings::NativeInput::NUM_INPUTS> defaults = {
     SDL_SCANCODE_I, SDL_SCANCODE_K, SDL_SCANCODE_J, SDL_SCANCODE_L,
 
     // indirectly mapped keys
-    SDL_SCANCODE_UP, SDL_SCANCODE_DOWN, SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT,
-    SDL_SCANCODE_D,
+    SDL_SCANCODE_UP, SDL_SCANCODE_DOWN, SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT
 };
 
 void Config::ReadValues() {
     // Controls
     for (int i = 0; i < Settings::NativeInput::NUM_INPUTS; ++i) {
         Settings::values.input_mappings[Settings::NativeInput::All[i]] =
-            sdl2_config->GetInteger("Controls", Settings::NativeInput::Mapping[i], defaults[i]);
+            Settings::InputDeviceMapping(sdl2_config->Get("Controls", Settings::NativeInput::Mapping[i], std::to_string(defaults[i])));
     }
-    Settings::values.pad_circle_modifier_scale = (float)sdl2_config->GetReal("Controls", "pad_circle_modifier_scale", 0.5);
+    Settings::values.pad_circle_modifier = Settings::InputDeviceMapping(sdl2_config->Get("Controls", "pad_circle_modifier", ""));
+    Settings::values.pad_circle_modifier_scale = (float)sdl2_config->GetReal("Controls", "pad_circle_modifier_scale", 0.4);
 
     // Core
     Settings::values.use_cpu_jit = sdl2_config->GetBoolean("Core", "use_cpu_jit", true);

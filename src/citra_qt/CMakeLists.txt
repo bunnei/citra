@@ -25,8 +25,10 @@ set(SRCS
             configure_graphics.cpp
             configure_system.cpp
             configure_input.cpp
+            configure_system.cpp
             game_list.cpp
             hotkeys.cpp
+            keybinding_names.cpp
             main.cpp
             ui_settings.cpp
             citra-qt.rc
@@ -58,9 +60,11 @@ set(HEADERS
             configure_graphics.h
             configure_system.h
             configure_input.h
+            configure_system.h
             game_list.h
             game_list_p.h
             hotkeys.h
+            keybinding_names.h
             main.h
             ui_settings.h
             version.h
@@ -78,6 +82,7 @@ set(UIS
             configure_graphics.ui
             configure_system.ui
             configure_input.ui
+            configure_system.ui
             hotkeys.ui
             main.ui
             )
@@ -98,7 +103,7 @@ if (APPLE)
 else()
     add_executable(citra-qt ${SRCS} ${HEADERS} ${UI_HDRS})
 endif()
-target_link_libraries(citra-qt core video_core audio_core common qhexedit)
+target_link_libraries(citra-qt core video_core audio_core input_core common qhexedit)
 target_link_libraries(citra-qt ${OPENGL_gl_LIBRARY} ${CITRA_QT_LIBS})
 target_link_libraries(citra-qt ${PLATFORM_LIBRARIES} Threads::Threads)
 
